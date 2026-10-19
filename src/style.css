@@ -1,0 +1,102 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #141414;
+  --muted: #4a4a4a;
+  --focus: #0a58ca;
+  --border: #767676;
+  --ink: #535353;
+  --sky: #f7f7f7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121212;
+    --fg: #f2f2f2;
+    --muted: #c8c8c8;
+    --focus: #8ab4ff;
+    --border: #9a9a9a;
+    --ink: #d9d9d9;
+    --sky: #1c1c1c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121212;
+  --fg: #f2f2f2;
+  --muted: #c8c8c8;
+  --focus: #8ab4ff;
+  --border: #9a9a9a;
+  --ink: #d9d9d9;
+  --sky: #1c1c1c;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font: 1.25rem/1.5 system-ui, sans-serif;
+  margin: 0 16px 48px;
+  max-width: 64rem;
+}
+h1 { font-size: 2rem; margin: 0.6em 0 0.4em; }
+h2 { font-size: 1.4rem; }
+button, select, input { font: inherit; }
+button { padding: 0.35em 1em; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.hint { color: var(--muted); }
+
+/* The game line: what the braille display shows. */
+#line {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 40rem;
+  font: 2rem/1.3 "Apple Braille", "Segoe UI Symbol", system-ui, sans-serif;
+  padding: 0.3em 0.5em;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  white-space: pre;
+  overflow-x: auto;
+}
+/* No scroll bar on the line: one appearing for a long text would move the
+   page under a helper's mouse. Long text still scrolls. */
+#line { scrollbar-width: none; }
+#line::-webkit-scrollbar { display: none; }
+#line .first-line { font: 0.9rem/1.4 system-ui, sans-serif; color: var(--muted); }
+
+/* For sighted helpers: the same picture, large. Hidden from VoiceOver. */
+#view { margin: 0 0 0.75rem; }
+#view .title { font-size: 2rem; font-weight: 700; margin: 0.6em 0 0.4em; }
+#scene {
+  display: block;
+  width: 100%;
+  max-width: 40rem;
+  height: auto;
+  border: 2px solid var(--border);
+  background: var(--sky);
+  image-rendering: pixelated;
+}
+
+details { margin: 1rem 0; max-width: 44rem; }
+summary { cursor: pointer; }
+summary h2 { display: inline; }
+fieldset { border: 1px solid var(--border); margin: 0.8rem 0; }
+label { display: inline-block; margin: 0.15em 0; }
+.legend-table { border-collapse: collapse; }
+.legend-table th, .legend-table td { border: 1px solid var(--border); padding: 0.2em 0.6em; text-align: left; }
+.cells { font-family: "Apple Braille", "Segoe UI Symbol", system-ui, sans-serif; font-size: 1.8rem; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The game line comes last in the page (see body.html) but shows first. */
+main { order: -1; margin-top: 1rem; }

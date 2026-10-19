@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Braille Dino VoiceOver probe</title>
+<style>body { font: 1.2rem system-ui, sans-serif; margin: 0 16px; } input, textarea, [contenteditable] { font: 1.6rem "Apple Braille", system-ui; width: 90%; border: 2px solid #777; }</style>
+</head>
+<body>
+<main>
+  <h1>VoiceOver probe</h1>
+  <p>Development only. Each field below changes its value five times, a few seconds after it gets focus, so a driver can read VoiceOver's Braille panel and last spoken phrase. Move between them with Tab.</p>
+  <input id="start" type="text" aria-label="Probe start" autocomplete="off">
+  <div id="stage"></div>
+</main>
+<script>
+  // Lines like the game's: a dino in cell 1 and a cactus moving left.
+  const DINO = '⣜';
+  const MARK = '⠁⠃⠉⠙⠑⠋⠛⠓⠊⠚⠅⠇⠍⠝⠕';
+  const line = (step) => {
+    const cells = Array(20).fill('⠀');
+    cells[19] = MARK[step % MARK.length];
+    cells[0] = step % 4 === 2 ? '⠮' : DINO;
+    const x = 18 - (step % 15);
+    if (x > 0) cells[x] = '⣀';
+    cells[Math.max(1, 12 - step)] = '⠒';
+    return cells.join('');
+  };
+  const attrs = 'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"';
+  const caretStart = (el, t) => { el.value = t; el.setSelectionRange(0, 0); };
+  const textSet = (el, t) => { el.textContent = t; };
+  const ce = `<div role="textbox" aria-multiline="true" aria-label="Dino" contenteditable="true" tabindex="0" ${attrs}></div>`;
+  // lines: 1 = the game alone, 2 = a line above it, 3 = a line above and below.
+  // Only the text of line 2 changes; the caret goes to its end (or start).
+  const ceLine = (at) => (el, t) => {
+    if (el.children.length !== 2) el.innerHTML = '<div>Dino</div><div>⠀</div>';
+    const row = el.children[1];
+    row.firstChild.data = t;
+    const r = document.createRange();
+    r.setStart(row.firstChild, at === 'end' ? t.length : 0);
+    r.collapse(true);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  };
+  // Keep line 1; replace only the element of line 2.
+  const ceRow2 = (at) => (el, t) => {
+    if (el.children.length !== 2) el.innerHTML = '<div>⠿</div><div></div>';
+    const row = document.createElement('div');
+    row.textContent = t;
+    el.children[1].replaceWith(row);
+    const r = document.createRange();
+    r.setStart(row.firstChild, at === 'end' ? t.length : 0);
+    r.collapse(true);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  };
+  const ceSet = (lines, at) => (el, t) => {
+    el.innerHTML = lines === 1 ? '<div></div>' : lines === 2 ? '<div>⠿</div><div></div>' : '<div>⠿</div><div></div><div>⠿</div>';
+    const row = lines === 1 ? el.firstChild : el.children[1];
+    row.textContent = t;
+    const r = document.createRange();
+    r.setStart(row.firstChild, at === 'end' ? t.length : at);
+    r.collapse(true);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  };
+
+  const SET = new URLSearchParams(location.search).get('set') || 'base';
+  const PAD = (n) => '⠀'.repeat(n);
+  const VARIANTS = SET === 'base' ? [
+    { html: `<input type="text" aria-label="Dino" ${attrs}>`, set: caretStart },
+    { html: `<input type="text" ${attrs}>`, set: caretStart },
+    { html: `<input type="text" aria-label="Dino" ${attrs}>`, set: (el, t) => { el.value = t; } },
+    { html: `<textarea rows="1" ${attrs}></textarea>`, set: caretStart },
+    { html: `<input type="text" aria-label="Dino" aria-braillelabel="⠀" ${attrs}>`, set: caretStart },
+    { html: `<input type="text" aria-label="Dino" ${attrs}>`, set: (el, t) => { el.setAttribute('aria-braillelabel', t); }, empty: true },
+    { html: `<div role="textbox" contenteditable="true" tabindex="0" ${attrs}></div>`, set: (el, t) => { el.textContent = t; const r = document.createRange(); r.setStart(el.firstChild, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } },
+  ] : SET === 'align' ? [
+    // The prefix VoiceOver shows before a field is "(label) [": with a one-cell
+    // braille label that is 5 cells. Pad the value so prefix plus padding is
+    // one display width, and keep the caret in the game part.
+    { html: `<input type="text" aria-label="Dino" aria-braillelabel="⠀" ${attrs}>`, set: (el, t) => { el.value = PAD(15) + t.slice(0, 19); el.setSelectionRange(el.value.length, el.value.length); } },
+    { html: `<input type="text" aria-label="Dino" aria-braillelabel="⠀" ${attrs}>`, set: (el, t) => { el.value = PAD(15) + t.slice(0, 19); el.setSelectionRange(15, 15); } },
+    { html: `<input type="text" aria-label="Dino" aria-braillelabel="⠀" ${attrs}>`, set: (el, t) => { el.value = PAD(15) + t; el.setSelectionRange(el.value.length, el.value.length); } },
+    { html: `<input type="text" aria-label="Dino" ${attrs}>`, set: (el, t) => { el.value = PAD(12) + t.slice(0, 19); el.setSelectionRange(el.value.length, el.value.length); } },
+    { html: `<input type="text" aria-label="Dino" aria-braillelabel="⠀" ${attrs}>`, set: (el, t) => { el.value = '⠿'.repeat(15) + t.slice(0, 19); el.setSelectionRange(el.value.length, el.value.length); } },
+  ] : SET === 'speech' ? [
+    // Which way of changing a focused field does VoiceOver not speak?
+    { html: `<input type="text" aria-label="Dino" ${attrs}>`, set: caretStart },
+    { html: `<input type="text" aria-label="Dino" ${attrs}>`, set: (el, t) => { el.value = t; } },
+    { html: `<input type="text" aria-label="Dino" aria-busy="true" ${attrs}>`, set: caretStart },
+    { html: `<textarea rows="1" aria-label="Dino" ${attrs}></textarea>`, set: caretStart },
+    { html: `<div role="textbox" aria-label="Dino" contenteditable="true" tabindex="0" ${attrs}></div>`, set: (el, t) => { el.textContent = t; const r = document.createRange(); r.setStart(el.firstChild, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } },
+    { html: `<div role="application" aria-label="Game"><input type="text" aria-label="Dino" ${attrs}></div>`, set: caretStart, inner: true },
+    { html: `<input type="text" aria-label="Dino" readonly ${attrs}>`, set: caretStart },
+    { html: `<input type="text" aria-label="Dino" ${attrs}>`, set: (el, t) => { el.value = t; el.setSelectionRange(t.length, t.length); } },
+  ] : SET === 'output' ? [
+    // Not a text field: what does braille show, and is a change spoken?
+    { html: `<div tabindex="0"></div>`, set: textSet },
+    { html: `<div tabindex="0" role="application" aria-label="Dino"></div>`, set: textSet },
+    { html: `<button type="button"></button>`, set: textSet },
+    { html: `<a href="#x"></a>`, set: textSet },
+    { html: `<div role="listbox" aria-label="Dino"><div role="option" tabindex="0" aria-selected="true"></div></div>`, set: textSet, inner: '[role=option]' },
+    { html: `<div tabindex="0" role="img" aria-label="Dino"></div>`, set: textSet },
+  ] : SET === 'output2' ? [
+    { html: `<div tabindex="0" aria-label="Dino"></div>`, set: (el, t) => { el.setAttribute('aria-label', t); } },
+    { html: `<div tabindex="0" aria-label="Dino"></div>`, set: (el, t) => { el.setAttribute('aria-braillelabel', t); } },
+    { html: `<button type="button" aria-label="Dino"></button>`, set: (el, t) => { el.setAttribute('aria-braillelabel', t); } },
+    { html: `<div tabindex="0" role="textbox" aria-readonly="true" aria-label="Dino"></div>`, set: textSet },
+    { html: `<div tabindex="0" role="status" aria-live="off"></div>`, set: textSet },
+    { html: `<div tabindex="0"><span></span></div>`, set: (el, t) => { el.replaceChildren(document.createTextNode(t)); }, },
+  ] : SET === 'lines' ? [
+    // A two-line field with the game on line 2: does braille show line 2 alone?
+    { html: `<textarea rows="2" aria-label="Dino" ${attrs}></textarea>`, set: (el, t) => { el.value = '⠿\n' + t; el.setSelectionRange(2, 2); } },
+    { html: `<textarea rows="2" aria-label="Dino" ${attrs}></textarea>`, set: (el, t) => { el.value = '⠿\n' + t; el.setSelectionRange(el.value.length, el.value.length); } },
+    { html: `<textarea rows="2" aria-label="Dino" ${attrs}></textarea>`, set: (el, t) => { el.value = '\n' + t; el.setSelectionRange(1, 1); } },
+    { html: `<div role="textbox" aria-multiline="true" aria-label="Dino" contenteditable="true" tabindex="0" ${attrs}></div>`, set: (el, t) => { el.innerHTML = '<div>⠿</div><div></div>'; el.lastChild.textContent = t; const r = document.createRange(); r.setStart(el.lastChild.firstChild, 0); r.collapse(true); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } },
+    { html: `<textarea rows="3" aria-label="Dino" ${attrs}></textarea>`, set: (el, t) => { el.value = '⠿\n' + t + '\n⠿'; el.setSelectionRange(2, 2); } },
+  ] : SET === 'ce' ? [
+    // Editable div, game on line 2: where does the caret need to be?
+    { html: ce, set: ceSet(2, 0) },
+    { html: ce, set: ceSet(3, 0) },
+    { html: ce, set: ceSet(2, 'end') },
+    { html: ce, set: ceSet(2, 1) },
+    { html: `<div role="textbox" aria-multiline="true" contenteditable="true" tabindex="0" ${attrs}></div>`, set: ceSet(2, 0) },
+    { html: ce, set: ceSet(1, 0) },
+  ] : SET === 'ce2' ? [
+    // The winner, checked longer at the game's speed, plus text screens.
+    { html: ce, set: ceSet(2, 'end') },
+    { html: ce, set: ceLine('end') },
+    { html: ce, set: ceLine('end'), text: 'Menu. Space: next. Any other key: choose. Play, 1 of 7' , at: 'start' },
+    { html: ce, set: ceLine('end'), text: 'Paused. 120 points.' },
+  ] : SET === 'typing' ? [
+    // After a key press in the field (as the driver sends), is each redraw
+    // still silent? The page swallows every key, as the game does.
+    { html: ce, set: ceSet(2, 'end') },
+    { html: ce, set: ceRow2('end') },
+    { html: ce.replace('contenteditable="true"', 'contenteditable="true" aria-readonly="true"'), set: ceSet(2, 'end') },
+    { html: ce.replace('contenteditable="true"', ''), set: ceSet(2, 'end') },
+    { html: ce.replace('contenteditable="true"', ''), set: ceRow2('end') },
+  ] : [];
+  const UPDATES = SET === 'typing' ? Array.from({ length: 12 }, (_, k) => 3000 + 550 * k) : SET === 'ce2' ? Array.from({ length: 22 }, (_, k) => 3000 + 550 * k) : SET === 'speech' || SET === 'output' || SET === 'output2' || SET === 'lines' || SET === 'ce' ? Array.from({ length: 10 }, (_, k) => 3000 + 600 * k) : [2000, 2800, 3600, 4400, 5200];
+  const stage = document.getElementById('stage');
+  VARIANTS.forEach((v) => {
+    const p = document.createElement('p');
+    p.innerHTML = v.html;
+    stage.append(p);
+    const el = v.inner ? p.querySelector(v.inner === true ? 'input' : v.inner) : p.firstElementChild;
+    if (!v.empty) v.set(el, line(0));
+    else v.set(el, line(0));
+    // Swallow keys and typing, as the game does.
+    el.addEventListener('keydown', (e) => { if (e.key !== 'Tab') e.preventDefault(); });
+    el.addEventListener('beforeinput', (e) => e.preventDefault());
+    let ran = false;
+    el.addEventListener('focus', () => {
+      if (ran) return;
+      ran = true;
+      if (v.text) {
+        const set = v.at === 'start' ? ceLine('start') : ceLine('end');
+        setTimeout(() => set(el, v.text), 300);
+        return;
+      }
+      UPDATES.forEach((ms, k) => setTimeout(() => v.set(el, line(k + 1)), ms));
+    });
+  });
+  document.getElementById('start').focus();
+</script>
+</body>
+</html>

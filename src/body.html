@@ -1,0 +1,96 @@
+<!-- The game line is last in the page, so nothing follows it for a screen
+     reader to read past its end; it is moved to the top for the eye. -->
+<div id="announcer"></div>
+<div id="page" inert>
+  <h1>Braille Dino: help and settings</h1>
+  <p><button type="button" class="back-to-game">Back to the game</button></p>
+
+  <details id="how">
+    <summary tabindex="0"><h2>How to play</h2></summary>
+    <p>The game runs on the game line above, which your braille display shows. You are the dino in cell 1. Obstacles come from the right, one cell at each step, and vanish as they reach you. The game is slower than the original so your display can keep up, and you can slow it down further in the settings. Everything here is also on the game line: press any key other than Space on the start screen for the menu, with How to play, Symbols, Practice and Settings.</p>
+    <p>While you play, the game line is the only thing your screen reader can reach, and Tab stays on it, so you cannot drift off it. To read this page, choose Help and settings on the page from the game's menu. Tab then moves through the page's buttons, headings and settings; Back to the game, or Escape, returns you. With a mouse, click a heading or a setting at any time.</p>
+    <h3>Keys</h3>
+    <table class="legend-table">
+      <thead><tr><th scope="col">What</th><th scope="col">Braille display</th><th scope="col">Keyboard</th></tr></thead>
+      <tbody>
+        <tr><td>Play, jump, go on, next</td><td>Space (either space bar)</td><td>Space; Up arrow also jumps</td></tr>
+        <tr><td>Duck (in the air: drop at once)</td><td>Any other braille key (the menu's Key check shows how each one arrives)</td><td>Down arrow, held</td></tr>
+        <tr><td>Pause</td><td>P</td><td>P; on a Mac, Escape too</td></tr>
+        <tr><td>Menu, choose, change a setting</td><td>Any key other than Space</td><td>Down arrow or Escape opens the menu; Enter chooses; Left and Right arrows change a setting</td></tr>
+        <tr><td>Move through a menu or pages</td><td>Space</td><td>Up and Down arrows</td></tr>
+        <tr><td>Back</td><td>Any key other than Space, on a page</td><td>Escape</td></tr>
+      </tbody>
+    </table>
+    <p>With NVDA or JAWS on Windows, jump with Space rather than the Up arrow, and duck with a letter: arrow keys make the screen reader read the line aloud. Escape belongs to the screen reader there (it leaves focus mode or forms mode), so pause with P.</p>
+    <p>Ducking needs your screen reader's braille input set to computer braille, which sends each key at once. With a literary table, keys arrive only when you press the space bar, so during play only Space works. That is enough: every course can be passed with Space alone. Jump a high bird when it is in cell 3 or 4, so the top of your jump passes over it.</p>
+    <h3>Reading the line</h3>
+    <p>Each cell is one place on the road. Its dot rows are heights: the top row, dots 1 and 4, is high in the sky, and the bottom row is the ground. Your dino in cell 1 covers the rows where you can be hit. Something hits you when it shares a row with your dino; left and right in the cell do not matter. The Symbols table below gives every shape for your Braille table setting (Braille dots on Windows).</p>
+    <ul>
+      <li>Jumping, your shape rises out of the cell and comes down again. You land 6 steps after you press.</li>
+      <li>Ducking, you are in the bottom two rows. A braille duck lasts 4 steps; Settings, Duck length, can change that, or make it last until your next key.</li>
+      <li>Cacti touch the ground: jump when the front of one is in cell 2 or 3. A single small cactus can be jumped from as far as cell 6.</li>
+      <li>The low bird slants down to the ground: jump it (it does not come in print cells). The high bird flies at head height: duck under it, or jump when it is in cell 3 or 4, so the top of your jump passes over it.</li>
+      <li>Space in the last 2 steps of a jump, as you come down, jumps again as you land. Earlier in a jump it does nothing.</li>
+      <li>Before a run starts or goes on, cell 1 counts down in place of your dino, then your dino appears and the road moves.</li>
+      <li>A hit shows in cell 1: all its dots with Eight dot, with dots 7 and 8, or : in print cells (dots 2 5, or 1 5 6 with VoiceOver's Eight dot table).</li>
+      <li>The score shows when you pause and at game over. The setting Score at the end of the line also shows it in the last 6 cells, which shortens the road.</li>
+    </ul>
+    <p>Print cells, the default on a Mac, and 6-dot on Windows draw the game's four heights in three dot rows, so the two highest share dots 1 and 4. With Eight dot, with dots 7 and 8, the four heights are the four dot rows, and dots 7 and 8 are the ground.</p>
+    <h3>Braille tables</h3>
+    <p>The game works with each of VoiceOver's quick-choice braille tables: Contracted, Uncontracted and Eight dot. VoiceOver's Contracted and Uncontracted tables leave out braille cell characters, so the game line is drawn with letters and punctuation that all three tables show as single cells: you are o (dots 1 3 5) running, a middle dot (dots 2 5 6) ducking, i (dots 2 4) low in a jump and a (dot 1) high in it; a small cactus is - (dots 3 6), a large cactus ! (dots 2 3 5) and a high bird a (dot 1); low birds do not come, as no print symbol for them stays low in all three tables. A hit shows : (dots 2 5) in cell 1, and the count-in is three dots, two, one. With Eight dot three of them differ: the middle dot is dots 3 6 8, ! is dots 2 3 4 6 and : is dots 1 5 6; they still hit at the same heights (low in a jump you clear only a small cactus, high in a jump you clear the cacti). With Eight dot you can also choose Settings, Braille table, Eight dot, with dots 7 and 8, for braille cells with the ground on dots 7 and 8, where low birds come too. With a Contracted or Uncontracted braille input table, braille keys arrive as words when you press Space, so during play only Space works, which is enough; dot 7 or dot 8 alone may still duck (try them in Key check). With an Eight dot input table every key ducks.</p>
+    <h3>Symbols</h3>
+    <table class="legend-table">
+      <thead><tr><th scope="col">Cell</th><th scope="col">What it is</th><th scope="col">Dots</th></tr></thead>
+      <tbody id="symbol-rows"></tbody>
+    </table>
+    <h3>VoiceOver settings that help</h3>
+    <ul>
+      <li>Braille input: computer braille (8-dot), so each key is sent at once.</li>
+      <li>Hints: turn them off (VoiceOver Utility, Verbosity, Hints), or a hint flashes over the line a few seconds after you arrive on it.</li>
+      <li>VoiceOver Utility, Braille, Layout: turn off Show multiple items, so the game line fills the display.</li>
+      <li>If dots 7 and 8 stay raised under every cell, turn off Use dots 7 and 8 to indicate VoiceOver cursor in the same place, or keep the default Braille table, which has no dots 7 and 8 under the road.</li>
+      <li>If VoiceOver says "space" when you jump, set typing echo to nothing (Verbosity, Text).</li>
+      <li>Turn on Do Not Disturb: system notifications flash over the braille line.</li>
+      <li>Set the display width in the settings to your display's cells (20 for the NLS eReader). The menu's Display check helps you confirm it.</li>
+    </ul>
+    <h3>NVDA settings that help</h3>
+    <p>Not yet tried on a braille display: these come from how NVDA is documented to work.</p>
+    <ul>
+      <li>The game needs focus mode. NVDA should switch to it on its own when the page opens. If NVDA says browse mode, or keys stop doing anything, press NVDA+Space. Escape, and Space with dots 1 5 on the display, switch to browse mode.</li>
+      <li>Braille input table: English (U.S.) 8 dot computer braille (NVDA menu, Preferences, Settings, Braille), so each key is sent at once.</li>
+      <li>To stop NVDA saying "space" on every jump, press NVDA+2 until typed characters are off, or NVDA+S for on-demand speech while you play.</li>
+      <li>On Windows the game leaves the last cell of the line for NVDA's cursor (the setting Leave the last cell for the screen reader cursor), so the dino stays in cell 1. If the blinking cursor distracts you, turn off Show cursor in the Braille settings.</li>
+      <li>Avoid Space chords during play: NVDA takes them as arrows, Escape or Tab.</li>
+      <li>If, after Help and settings on the page, the arrows do not read the page, press NVDA+Space once.</li>
+    </ul>
+    <h3>JAWS settings that help</h3>
+    <p>Not yet tried on a braille display: these come from how JAWS is documented to work.</p>
+    <ul>
+      <li>The game needs forms mode. If keys do nothing, press Enter (dot 8) on the game line, or Insert+Z to turn off the virtual cursor for this tab. Escape, and Space with E on the display, leave forms mode.</li>
+      <li>In Settings Center, Braille: set input and output to Computer Braille, check 8 Dot Braille, and set Placement of status cells to None.</li>
+      <li>To stop typing echo, press Insert+2 until JAWS says none.</li>
+      <li>If something comes before the dino in the Display check, try Line mode (on HumanWare displays such as the NLS eReader, Space with dots 2 5 cycles the braille mode).</li>
+      <li>After Help and settings on the page, if JAWS cannot find the headings, press Insert+Escape to refresh.</li>
+    </ul>
+  </details>
+
+  <details id="settings">
+    <summary tabindex="0"><h2>Settings</h2></summary>
+    <p>The same settings as on the game line (menu, then Settings). They are remembered in this browser.</p>
+    <div id="settings-form"></div>
+    <p><button type="button" class="back-to-game">Back to the game</button></p>
+  </details>
+</div>
+<main>
+  <!-- For sighted guides only: the title and the picture of the game. They
+       may come before the game line, never after it. -->
+  <div id="view" aria-hidden="true">
+    <p class="title">Braille Dino</p>
+    <canvas id="scene" width="800" height="150"></canvas>
+  </div>
+  <!-- The game line: two lines, the game on the second (see app.js). While
+       you play it is the only thing a screen reader can reach: the rest of the page
+       below is inert until you choose Help and settings on the page. -->
+  <div id="line" role="textbox" aria-multiline="true" aria-label="Dino" contenteditable="true" tabindex="0"
+       autocapitalize="off" autocorrect="off" spellcheck="false" writingsuggestions="false"></div>
+</main>

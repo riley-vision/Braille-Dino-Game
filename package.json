@@ -1,0 +1,14 @@
+{
+  "name": "braille-dino",
+  "version": "1.0.0",
+  "description": "The Chrome dino game for refreshable braille displays, as one HTML file.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

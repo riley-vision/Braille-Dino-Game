@@ -1,0 +1,2432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Braille Dino</title>
+<meta name="description" content="The Chrome dino game for refreshable braille displays: play it entirely in braille.">
+<!-- Built from src/ by build.mjs. Edit those files, not this one. -->
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #141414;
+  --muted: #4a4a4a;
+  --focus: #0a58ca;
+  --border: #767676;
+  --ink: #535353;
+  --sky: #f7f7f7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121212;
+    --fg: #f2f2f2;
+    --muted: #c8c8c8;
+    --focus: #8ab4ff;
+    --border: #9a9a9a;
+    --ink: #d9d9d9;
+    --sky: #1c1c1c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121212;
+  --fg: #f2f2f2;
+  --muted: #c8c8c8;
+  --focus: #8ab4ff;
+  --border: #9a9a9a;
+  --ink: #d9d9d9;
+  --sky: #1c1c1c;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font: 1.25rem/1.5 system-ui, sans-serif;
+  margin: 0 16px 48px;
+  max-width: 64rem;
+}
+h1 { font-size: 2rem; margin: 0.6em 0 0.4em; }
+h2 { font-size: 1.4rem; }
+button, select, input { font: inherit; }
+button { padding: 0.35em 1em; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.hint { color: var(--muted); }
+
+/* The game line: what the braille display shows. */
+#line {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 40rem;
+  font: 2rem/1.3 "Apple Braille", "Segoe UI Symbol", system-ui, sans-serif;
+  padding: 0.3em 0.5em;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  white-space: pre;
+  overflow-x: auto;
+}
+/* No scroll bar on the line: one appearing for a long text would move the
+   page under a helper's mouse. Long text still scrolls. */
+#line { scrollbar-width: none; }
+#line::-webkit-scrollbar { display: none; }
+#line .first-line { font: 0.9rem/1.4 system-ui, sans-serif; color: var(--muted); }
+
+/* For sighted helpers: the same picture, large. Hidden from VoiceOver. */
+#view { margin: 0 0 0.75rem; }
+#view .title { font-size: 2rem; font-weight: 700; margin: 0.6em 0 0.4em; }
+#scene {
+  display: block;
+  width: 100%;
+  max-width: 40rem;
+  height: auto;
+  border: 2px solid var(--border);
+  background: var(--sky);
+  image-rendering: pixelated;
+}
+
+details { margin: 1rem 0; max-width: 44rem; }
+summary { cursor: pointer; }
+summary h2 { display: inline; }
+fieldset { border: 1px solid var(--border); margin: 0.8rem 0; }
+label { display: inline-block; margin: 0.15em 0; }
+.legend-table { border-collapse: collapse; }
+.legend-table th, .legend-table td { border: 1px solid var(--border); padding: 0.2em 0.6em; text-align: left; }
+.cells { font-family: "Apple Braille", "Segoe UI Symbol", system-ui, sans-serif; font-size: 1.8rem; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The game line comes last in the page (see body.html) but shows first. */
+main { order: -1; margin-top: 1rem; }
+</style>
+</head>
+<body>
+<!-- The game line is last in the page, so nothing follows it for a screen
+     reader to read past its end; it is moved to the top for the eye. -->
+<div id="announcer"></div>
+<div id="page" inert>
+  <h1>Braille Dino: help and settings</h1>
+  <p><button type="button" class="back-to-game">Back to the game</button></p>
+
+  <details id="how">
+    <summary tabindex="0"><h2>How to play</h2></summary>
+    <p>The game runs on the game line above, which your braille display shows. You are the dino in cell 1. Obstacles come from the right, one cell at each step, and vanish as they reach you. The game is slower than the original so your display can keep up, and you can slow it down further in the settings. Everything here is also on the game line: press any key other than Space on the start screen for the menu, with How to play, Symbols, Practice and Settings.</p>
+    <p>While you play, the game line is the only thing your screen reader can reach, and Tab stays on it, so you cannot drift off it. To read this page, choose Help and settings on the page from the game's menu. Tab then moves through the page's buttons, headings and settings; Back to the game, or Escape, returns you. With a mouse, click a heading or a setting at any time.</p>
+    <h3>Keys</h3>
+    <table class="legend-table">
+      <thead><tr><th scope="col">What</th><th scope="col">Braille display</th><th scope="col">Keyboard</th></tr></thead>
+      <tbody>
+        <tr><td>Play, jump, go on, next</td><td>Space (either space bar)</td><td>Space; Up arrow also jumps</td></tr>
+        <tr><td>Duck (in the air: drop at once)</td><td>Any other braille key (the menu's Key check shows how each one arrives)</td><td>Down arrow, held</td></tr>
+        <tr><td>Pause</td><td>P</td><td>P; on a Mac, Escape too</td></tr>
+        <tr><td>Menu, choose, change a setting</td><td>Any key other than Space</td><td>Down arrow or Escape opens the menu; Enter chooses; Left and Right arrows change a setting</td></tr>
+        <tr><td>Move through a menu or pages</td><td>Space</td><td>Up and Down arrows</td></tr>
+        <tr><td>Back</td><td>Any key other than Space, on a page</td><td>Escape</td></tr>
+      </tbody>
+    </table>
+    <p>With NVDA or JAWS on Windows, jump with Space rather than the Up arrow, and duck with a letter: arrow keys make the screen reader read the line aloud. Escape belongs to the screen reader there (it leaves focus mode or forms mode), so pause with P.</p>
+    <p>Ducking needs your screen reader's braille input set to computer braille, which sends each key at once. With a literary table, keys arrive only when you press the space bar, so during play only Space works. That is enough: every course can be passed with Space alone. Jump a high bird when it is in cell 3 or 4, so the top of your jump passes over it.</p>
+    <h3>Reading the line</h3>
+    <p>Each cell is one place on the road. Its dot rows are heights: the top row, dots 1 and 4, is high in the sky, and the bottom row is the ground. Your dino in cell 1 covers the rows where you can be hit. Something hits you when it shares a row with your dino; left and right in the cell do not matter. The Symbols table below gives every shape for your Braille table setting (Braille dots on Windows).</p>
+    <ul>
+      <li>Jumping, your shape rises out of the cell and comes down again. You land 6 steps after you press.</li>
+      <li>Ducking, you are in the bottom two rows. A braille duck lasts 4 steps; Settings, Duck length, can change that, or make it last until your next key.</li>
+      <li>Cacti touch the ground: jump when the front of one is in cell 2 or 3. A single small cactus can be jumped from as far as cell 6.</li>
+      <li>The low bird slants down to the ground: jump it (it does not come in print cells). The high bird flies at head height: duck under it, or jump when it is in cell 3 or 4, so the top of your jump passes over it.</li>
+      <li>Space in the last 2 steps of a jump, as you come down, jumps again as you land. Earlier in a jump it does nothing.</li>
+      <li>Before a run starts or goes on, cell 1 counts down in place of your dino, then your dino appears and the road moves.</li>
+      <li>A hit shows in cell 1: all its dots with Eight dot, with dots 7 and 8, or : in print cells (dots 2 5, or 1 5 6 with VoiceOver's Eight dot table).</li>
+      <li>The score shows when you pause and at game over. The setting Score at the end of the line also shows it in the last 6 cells, which shortens the road.</li>
+    </ul>
+    <p>Print cells, the default on a Mac, and 6-dot on Windows draw the game's four heights in three dot rows, so the two highest share dots 1 and 4. With Eight dot, with dots 7 and 8, the four heights are the four dot rows, and dots 7 and 8 are the ground.</p>
+    <h3>Braille tables</h3>
+    <p>The game works with each of VoiceOver's quick-choice braille tables: Contracted, Uncontracted and Eight dot. VoiceOver's Contracted and Uncontracted tables leave out braille cell characters, so the game line is drawn with letters and punctuation that all three tables show as single cells: you are o (dots 1 3 5) running, a middle dot (dots 2 5 6) ducking, i (dots 2 4) low in a jump and a (dot 1) high in it; a small cactus is - (dots 3 6), a large cactus ! (dots 2 3 5) and a high bird a (dot 1); low birds do not come, as no print symbol for them stays low in all three tables. A hit shows : (dots 2 5) in cell 1, and the count-in is three dots, two, one. With Eight dot three of them differ: the middle dot is dots 3 6 8, ! is dots 2 3 4 6 and : is dots 1 5 6; they still hit at the same heights (low in a jump you clear only a small cactus, high in a jump you clear the cacti). With Eight dot you can also choose Settings, Braille table, Eight dot, with dots 7 and 8, for braille cells with the ground on dots 7 and 8, where low birds come too. With a Contracted or Uncontracted braille input table, braille keys arrive as words when you press Space, so during play only Space works, which is enough; dot 7 or dot 8 alone may still duck (try them in Key check). With an Eight dot input table every key ducks.</p>
+    <h3>Symbols</h3>
+    <table class="legend-table">
+      <thead><tr><th scope="col">Cell</th><th scope="col">What it is</th><th scope="col">Dots</th></tr></thead>
+      <tbody id="symbol-rows"></tbody>
+    </table>
+    <h3>VoiceOver settings that help</h3>
+    <ul>
+      <li>Braille input: computer braille (8-dot), so each key is sent at once.</li>
+      <li>Hints: turn them off (VoiceOver Utility, Verbosity, Hints), or a hint flashes over the line a few seconds after you arrive on it.</li>
+      <li>VoiceOver Utility, Braille, Layout: turn off Show multiple items, so the game line fills the display.</li>
+      <li>If dots 7 and 8 stay raised under every cell, turn off Use dots 7 and 8 to indicate VoiceOver cursor in the same place, or keep the default Braille table, which has no dots 7 and 8 under the road.</li>
+      <li>If VoiceOver says "space" when you jump, set typing echo to nothing (Verbosity, Text).</li>
+      <li>Turn on Do Not Disturb: system notifications flash over the braille line.</li>
+      <li>Set the display width in the settings to your display's cells (20 for the NLS eReader). The menu's Display check helps you confirm it.</li>
+    </ul>
+    <h3>NVDA settings that help</h3>
+    <p>Not yet tried on a braille display: these come from how NVDA is documented to work.</p>
+    <ul>
+      <li>The game needs focus mode. NVDA should switch to it on its own when the page opens. If NVDA says browse mode, or keys stop doing anything, press NVDA+Space. Escape, and Space with dots 1 5 on the display, switch to browse mode.</li>
+      <li>Braille input table: English (U.S.) 8 dot computer braille (NVDA menu, Preferences, Settings, Braille), so each key is sent at once.</li>
+      <li>To stop NVDA saying "space" on every jump, press NVDA+2 until typed characters are off, or NVDA+S for on-demand speech while you play.</li>
+      <li>On Windows the game leaves the last cell of the line for NVDA's cursor (the setting Leave the last cell for the screen reader cursor), so the dino stays in cell 1. If the blinking cursor distracts you, turn off Show cursor in the Braille settings.</li>
+      <li>Avoid Space chords during play: NVDA takes them as arrows, Escape or Tab.</li>
+      <li>If, after Help and settings on the page, the arrows do not read the page, press NVDA+Space once.</li>
+    </ul>
+    <h3>JAWS settings that help</h3>
+    <p>Not yet tried on a braille display: these come from how JAWS is documented to work.</p>
+    <ul>
+      <li>The game needs forms mode. If keys do nothing, press Enter (dot 8) on the game line, or Insert+Z to turn off the virtual cursor for this tab. Escape, and Space with E on the display, leave forms mode.</li>
+      <li>In Settings Center, Braille: set input and output to Computer Braille, check 8 Dot Braille, and set Placement of status cells to None.</li>
+      <li>To stop typing echo, press Insert+2 until JAWS says none.</li>
+      <li>If something comes before the dino in the Display check, try Line mode (on HumanWare displays such as the NLS eReader, Space with dots 2 5 cycles the braille mode).</li>
+      <li>After Help and settings on the page, if JAWS cannot find the headings, press Insert+Escape to refresh.</li>
+    </ul>
+  </details>
+
+  <details id="settings">
+    <summary tabindex="0"><h2>Settings</h2></summary>
+    <p>The same settings as on the game line (menu, then Settings). They are remembered in this browser.</p>
+    <div id="settings-form"></div>
+    <p><button type="button" class="back-to-game">Back to the game</button></p>
+  </details>
+</div>
+<main>
+  <!-- For sighted guides only: the title and the picture of the game. They
+       may come before the game line, never after it. -->
+  <div id="view" aria-hidden="true">
+    <p class="title">Braille Dino</p>
+    <canvas id="scene" width="800" height="150"></canvas>
+  </div>
+  <!-- The game line: two lines, the game on the second (see app.js). While
+       you play it is the only thing a screen reader can reach: the rest of the page
+       below is inert until you choose Help and settings on the page. -->
+  <div id="line" role="textbox" aria-multiline="true" aria-label="Dino" contenteditable="true" tabindex="0"
+       autocapitalize="off" autocorrect="off" spellcheck="false" writingsuggestions="false"></div>
+</main>
+<script id="engine">
+// The game itself, without the page: the world, the dino's moves, the
+// obstacles and the braille picture. Given the same seed and the same
+// presses it always plays the same way, so it can be tested in Node.
+var DinoEngine = (function () {
+  'use strict';
+
+  // ---------- Dots and cells ----------
+  const BIT = [0, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80];
+  const dots = (...numbers) => numbers.reduce((mask, n) => mask | BIT[n], 0);
+  const cell = (mask) => String.fromCharCode(0x2800 + mask);
+  const dotList = (mask) => {
+    const on = [];
+    for (let n = 1; n <= 8; n++) if (mask & BIT[n]) on.push(n);
+    return on;
+  };
+  const dotWords = (mask) => {
+    const on = dotList(mask);
+    return on.length ? `dot${on.length > 1 ? 's' : ''} ${on.join(' ')}` : 'blank';
+  };
+
+  // Heights. The game has four rows, 1 at the top and 4 on the ground. In
+  // 8-dot braille they are the four dot rows of a cell (row 4 is dots 7 and
+  // 8); 6-dot braille draws the same four rows in three. A hit is decided by
+  // rows alone: something hits you when it shares a row with you.
+  const rowSet = (...r) => r.reduce((bits, n) => bits | (1 << n), 0);
+
+  // Print cells, for every VoiceOver braille table. VoiceOver's Contracted
+  // and Uncontracted English tables ("System", from Duxbury) delete braille
+  // cell characters (U+2800 to U+28FF), so a line of them shows as blanks;
+  // only its Eight dot table keeps them. Measured on macOS 27 by running
+  // VoiceOver's translators themselves (dev/braille-translate.m). These
+  // eight print characters come out as exactly one cell in all three, as
+  // long as a colon is never right before a letter (the line never has
+  // that). Contracted and Uncontracted give the dots below (6-dot shapes);
+  // Eight dot gives the same, except for the three in UEB_EIGHT_DOT. The
+  // Liblouis tables (NVDA's, on Windows) write the middle dot as two cells,
+  // so Windows keeps braille cells.
+  const UEB_TEXT = {
+    [BIT[1]]: 'a', [BIT[3]]: "'", [BIT[2] | BIT[4]]: 'i', [BIT[2] | BIT[5]]: ':', [BIT[1] | BIT[3] | BIT[5]]: 'o',
+    [BIT[2] | BIT[3] | BIT[5]]: '!', [BIT[3] | BIT[6]]: '-', [BIT[2] | BIT[5] | BIT[6]]: '\u00b7',
+    0: '\u2800',
+  };
+  /** The obstacles that come in print cells. No print symbol for the low bird
+   * stays low in all three tables (the middle dot, dots 2 5 6, does not feel
+   * like one), so it does not come; the high bird and the cacti do. */
+  const UEB_KINDS = ['small', 'large', 'highBird'];
+  /** What VoiceOver's Eight dot table shows instead, where it differs. */
+  const UEB_EIGHT_DOT = {
+    '!': BIT[2] | BIT[3] | BIT[4] | BIT[6],
+    ':': BIT[1] | BIT[5] | BIT[6],
+    '\u00b7': BIT[3] | BIT[6] | BIT[8],
+  };
+  /** A cell as the game line writes it: a braille character, or in the
+   * 'ueb' mode the print character that becomes that cell. */
+  const glyph = (mask, dotMode) => (dotMode === 'ueb' && UEB_TEXT[mask] !== undefined ? UEB_TEXT[mask] : cell(mask));
+  /** Which looks a dot mode uses: 8, 6, or 'ueb' (print cells). */
+  const lookKey = (dotMode) => (dotMode === '6' ? 6 : dotMode === 'ueb' ? 'ueb' : 8);
+
+  // ---------- Design data ----------
+  // The dino has cell 1 to itself; things vanish into it as they reach it.
+  // Its shape covers exactly the rows where it can be hit. Running it is an
+  // o standing on the ground (8 dots: 2 6 7, rows 2 to 4; nothing ever comes
+  // in row 1 alone), ducking the bottom two rows, and in a jump the same o
+  // rises out of the top of the cell: in print cells o, i, a; in 8 dots the
+  // same o one row lower, standing on dots 7 8 (2 6 7, then 1 3 5, 2 4, 1).
+  const POSES = {
+    run: { rows: rowSet(2, 3, 4), name: 'you, running', look: { 8: dots(2, 6, 7), 6: dots(2, 3, 4, 6), ueb: dots(1, 3, 5) } },
+    duck: { rows: rowSet(3, 4), name: 'you, ducking', look: { 8: dots(3, 6, 7, 8), 6: dots(2, 3, 5, 6), ueb: dots(2, 5, 6) } },
+    low: { rows: rowSet(1, 2, 3), name: 'you, low in a jump', look: { 8: dots(1, 3, 5), 6: dots(1, 2, 5), ueb: dots(2, 4) } },
+    high: { rows: rowSet(1, 2), name: 'you, high in a jump', look: { 8: dots(2, 4), 6: dots(1, 4), ueb: dots(1) } },
+    top: { rows: rowSet(1), name: 'you, at the top of a jump', look: { 8: dots(1), 6: dots(1, 4), ueb: dots(1) } },
+  };
+  /** The jump, one pose per step. The first pose comes the moment the jump
+   * key arrives; the dino lands on the step after the last. */
+  const JUMP = ['low', 'high', 'top', 'top', 'high', 'low'];
+  /** A jump pressed in these last poses is kept and made on landing. */
+  const BUFFER_FROM = 4;
+
+  // Obstacles: their rows (what hits) and how they look. Cacti touch the
+  // ground; the low bird is a slant touching the ground; the high bird flies
+  // at head height, above a ducking dino and below the top of a jump.
+  const KINDS = {
+    small: { name: 'small cactus', plural: 'small cacti', rows: rowSet(4), look: { 8: dots(7, 8), 6: dots(3, 6), ueb: dots(3, 6) }, answer: 'Jump.' },
+    large: { name: 'large cactus', plural: 'large cacti', rows: rowSet(3, 4), look: { 8: dots(3, 6, 7, 8), 6: dots(2, 3, 5, 6), ueb: dots(2, 3, 5) }, answer: 'Jump.' },
+    lowBird: { name: 'low bird', rows: rowSet(3, 4), look: { 8: dots(3, 8), 6: dots(2, 6), ueb: dots(2, 5, 6) }, bird: true, answer: 'Jump.' },
+    highBird: { name: 'high bird', rows: rowSet(2), look: { 8: dots(2, 5), 6: dots(1, 4), ueb: dots(1) }, bird: true, answer: 'Duck, or jump so the top of your jump passes over it.' },
+  };
+  // With no full cell in print, a hit in print cells is dots 2 5.
+  const CRASH = { 8: dots(1, 2, 3, 4, 5, 6, 7, 8), 6: dots(1, 2, 3, 4, 5, 6), ueb: dots(2, 5) };
+  /** Cell 1 before the world moves: a shrinking bar in place of the dino
+   * (three rows, two, one), then the dino appears and the run starts. */
+  const COUNTDOWN = [dots(3, 6), dots(2, 3, 5, 6), dots(1, 2, 3, 4, 5, 6)]; // 1, 2, 3 beats left
+  /** The same in print cells: three dots, two, one, in every table. None is
+   * a colon, which could not come before a high bird's letter. */
+  const COUNTDOWN_UEB = [dots(3), dots(3, 6), dots(2, 5, 6)];
+
+  const RULES = {
+    dinoCell: 0, // cell 1
+    firstAt: 24, // cells ahead of the dino for the first obstacle
+    duckSteps: 4, // a braille duck stays down this many steps, then stands
+    milestone: 100,
+    largeGroupsFrom: 150,
+    birdsFrom: 450,
+    speedUpEvery: 100,
+    speedUp: 0.95,
+  };
+
+  // Step time per speed setting, in milliseconds: at the start, and the
+  // fastest it speeds up to (5 percent every 100 points).
+  const SPEEDS = [null, [700, 500], [550, 400], [450, 330], [360, 260], [280, 200], [220, 160], [170, 125], [130, 100]];
+  const SPEED_NAMES = [null, 'very slow', 'slow', 'medium', 'fast', 'very fast', 'super fast', 'ultra fast', 'top speed'];
+
+  // ---------- Random numbers (mulberry32, state kept in the run) ----------
+  function random(run) {
+    run.rng = (run.rng + 0x6d2b79f5) >>> 0;
+    let t = run.rng;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  const int = (run, lo, hi) => lo + Math.floor(random(run) * (hi - lo + 1));
+
+  // ---------- A run ----------
+  /** kinds: which obstacle kinds may come (practice); null for all. */
+  function createRun({ seed = 1, practice = false, kinds = null, duckSteps = RULES.duckSteps, birdsFrom = RULES.birdsFrom } = {}) {
+    return {
+      rng: seed >>> 0,
+      seed: seed >>> 0,
+      practice,
+      kinds,
+      duckSteps,
+      birdsFrom,
+      steps: 0,
+      score: 0,
+      hits: 0,
+      cleared: 0,
+      over: false,
+      hit: null, // what the last hit was: { kind, w, pose, phase, fell }
+      dino: { air: -1, buffered: false, duck: 0, duckHeld: false, duckOnLanding: false, fell: false, landed: -99, duckEnded: -99 },
+      obstacles: [],
+      nextX: RULES.dinoCell + RULES.firstAt,
+      last: null, // { kind, w } of the last obstacle placed
+      sameType: 0,
+    };
+  }
+
+  function clone(run) {
+    return {
+      ...run,
+      dino: { ...run.dino },
+      obstacles: run.obstacles.map((o) => ({ ...o })),
+      last: run.last && { ...run.last },
+      hit: run.hit && { ...run.hit },
+    };
+  }
+
+  function pose(run) {
+    const d = run.dino;
+    if (d.air >= 0) return JUMP[d.air];
+    if (d.duck > 0 || d.duckHeld) return 'duck';
+    return 'run';
+  }
+  const dinoRows = (run) => POSES[pose(run)].rows;
+
+  /** The obstacle in the dino's cell that shares a row with it, if any. */
+  function hitter(run) {
+    const x = RULES.dinoCell;
+    const mine = dinoRows(run);
+    return run.obstacles.find((o) => !o.passed && o.x <= x && x < o.x + o.w && KINDS[o.kind].rows & mine) || null;
+  }
+
+  /** Ends the run on a hit, or in practice counts it and lets the dino through. */
+  function checkHit(run, events) {
+    const o = hitter(run);
+    if (!o) return;
+    run.hits++;
+    run.hit = { kind: o.kind, w: o.w, pose: pose(run), phase: run.dino.air, fell: run.dino.fell, sinceLanding: run.steps - run.dino.landed, sinceDuck: run.steps - run.dino.duckEnded };
+    events.push('hit');
+    if (run.practice) o.passed = true;
+    else run.over = true;
+  }
+
+  // ---------- The dino's moves ----------
+  /** Space: jump now if on the ground (or ducking); near the end of a jump,
+   * keep it for the landing. */
+  function jump(run) {
+    const events = [];
+    if (run.over) return events;
+    const d = run.dino;
+    if (d.air >= 0) {
+      if (d.air >= BUFFER_FROM && !d.buffered) {
+        d.buffered = true;
+        events.push('buffered');
+      }
+      return events;
+    }
+    d.air = 0;
+    d.duck = 0;
+    d.duckOnLanding = false;
+    d.fell = false;
+    events.push('jump');
+    checkHit(run, events);
+    return events;
+  }
+
+  /** A dot key: duck now, for a few steps. In the air: drop at once, and
+   * duck on landing. held: the keyboard's Down key, which ducks while held. */
+  function duck(run, { held = false } = {}) {
+    const events = [];
+    if (run.over) return events;
+    const d = run.dino;
+    if (held) d.duckHeld = true;
+    if (d.air >= 0) {
+      d.buffered = false;
+      if (!d.duckOnLanding) events.push('duckOnLanding');
+      d.duckOnLanding = true;
+      if (d.air < JUMP.length - 1) {
+        d.air = JUMP.length - 1;
+        d.fell = true;
+        events.push('fall');
+        checkHit(run, events);
+      }
+      return events;
+    }
+    if (!held) d.duck = run.duckSteps + 1;
+    events.push('duck');
+    return events;
+  }
+
+  /** The keyboard's Down key was let go: stand up now. */
+  function standUp(run) {
+    const events = [];
+    if (run.over) return events;
+    const d = run.dino;
+    if (!d.duckHeld) return events;
+    d.duckHeld = false;
+    d.duck = 0;
+    d.duckOnLanding = false;
+    events.push('stand');
+    checkHit(run, events);
+    return events;
+  }
+
+  // ---------- Obstacles ----------
+  const typeOf = (kind) => (KINDS[kind].bird ? 'bird' : kind);
+  const allowed = (run, kind) => !run.kinds || run.kinds.includes(kind);
+
+  function chooseNext(run) {
+    // The score when this obstacle will reach the dino: birds and groups
+    // start at their score there, not when they are made far ahead.
+    const at = run.score + run.nextX - RULES.dinoCell;
+    // Types as in the original: small cactus, large cactus, bird.
+    let types = [];
+    if (allowed(run, 'small')) types.push('small');
+    if (allowed(run, 'large')) types.push('large');
+    const birds = ['lowBird', 'highBird'].filter((k) => allowed(run, k));
+    if (birds.length && (run.practice || at >= run.birdsFrom)) types.push('bird');
+    // Never three of a type in a row, as in the original.
+    if (run.sameType >= 2 && types.length > 1) types = types.filter((t) => t !== typeOf(run.last.kind));
+    const type = types[int(run, 0, types.length - 1)];
+    if (type === 'bird') return { kind: birds[int(run, 0, birds.length - 1)], w: 1 };
+    const groups = type === 'small' || run.practice || at >= RULES.largeGroupsFrom;
+    return { kind: type, w: groups ? int(run, 1, 3) : 1 };
+  }
+
+  /** The least gap (empty cells) after one obstacle before the next, so that
+   * however the first was answered, the next still has at least 2 good steps
+   * to press on (3 for most), and so that Space alone can pass every course
+   * however a middle bird was jumped: it needs 4 cells after it, and 5
+   * before another middle bird. */
+  function minGap(prev, next) {
+    if (prev.kind === 'highBird') return next.kind === 'highBird' ? 5 : 4;
+    const w = Math.min(3, prev.w);
+    if (next.kind === 'large' && next.w === 3) return [5, 4, 3][w - 1];
+    return [6, 5, 4][w - 1];
+  }
+
+  function place(run) {
+    const next = chooseNext(run);
+    if (run.last) {
+      let gap = minGap(run.last, next);
+      if (run.practice) gap *= 2;
+      run.nextX += gap + int(run, 0, Math.floor(gap / 2));
+    }
+    run.obstacles.push({ kind: next.kind, x: run.nextX, w: next.w, passed: false });
+    run.sameType = run.last && typeOf(run.last.kind) === typeOf(next.kind) ? run.sameType + 1 : 1;
+    run.last = next;
+    run.nextX += next.w;
+  }
+
+  /** Obstacles are made this far ahead, whatever the display width, so a
+   * seed gives the same course on every display. */
+  const AHEAD = 90;
+
+  // ---------- One step ----------
+  function step(run) {
+    const events = [];
+    if (run.over) return events;
+    run.steps++;
+    const d = run.dino;
+    if (d.air >= 0) {
+      d.air++;
+      if (d.air >= JUMP.length) {
+        d.air = -1;
+        d.fell = false;
+        d.landed = run.steps;
+        events.push('land');
+        if (d.buffered) {
+          d.buffered = false;
+          d.air = 0;
+          d.duckOnLanding = false;
+          events.push('jump');
+        } else if (d.duckOnLanding) {
+          d.duckOnLanding = false;
+          if (!d.duckHeld) d.duck = run.duckSteps + 1;
+        }
+      }
+    } else if (d.duck > 0) {
+      d.duck--;
+      if (d.duck === 0) d.duckEnded = run.steps;
+    }
+
+    for (const o of run.obstacles) {
+      o.x -= 1;
+      if (o.x + o.w === RULES.dinoCell && !o.passed) run.cleared++;
+    }
+    run.obstacles = run.obstacles.filter((o) => o.x + o.w > RULES.dinoCell);
+    run.nextX -= 1;
+    while (run.nextX <= RULES.dinoCell + AHEAD) place(run);
+
+    const before = run.score;
+    run.score++;
+    if (Math.floor(run.score / RULES.milestone) > Math.floor(before / RULES.milestone)) events.push('milestone');
+    checkHit(run, events);
+    return events;
+  }
+
+  /** Milliseconds per step: the speed setting's start time, 5 percent
+   * faster every 100 points down to its fastest. */
+  function stepTime(run, speed, speedUp = true) {
+    const [start, fastest] = SPEEDS[Math.min(SPEEDS.length - 1, Math.max(1, speed))];
+    if (!speedUp || run.practice) return start;
+    const times = Math.floor(run.score / RULES.speedUpEvery);
+    return Math.max(fastest, Math.round(start * Math.pow(RULES.speedUp, times)));
+  }
+
+  // ---------- The braille picture ----------
+  /** The cells of the line. options: dotMode, width, crash (show the crash
+   * cell), countdown (beats left, 1 to 3, shown in the dino's cell). */
+  function masks(run, { dotMode = '8', width = 20, crash = false, countdown = 0 } = {}) {
+    const dm = lookKey(dotMode);
+    const x0 = RULES.dinoCell;
+    const out = new Array(width).fill(0);
+    for (const o of run.obstacles) {
+      const k = KINDS[o.kind];
+      // In print a cell is one character, so looks replace rather than add.
+      for (let x = Math.max(x0 + 1, o.x); x < Math.min(width, o.x + o.w); x++) out[x] = dm === 'ueb' ? k.look[dm] : out[x] | k.look[dm];
+    }
+    if (width > 0) {
+      if (crash) out[x0] = CRASH[dm];
+      else if (countdown > 0) out[x0] = (dm === 'ueb' ? COUNTDOWN_UEB : COUNTDOWN)[Math.min(3, countdown) - 1];
+      else out[x0] = POSES[pose(run)].look[dm];
+    }
+    return out;
+  }
+
+  function cells(run, options = {}) {
+    return masks(run, options).map((m) => glyph(m, options.dotMode)).join('');
+  }
+
+  // ---------- Words ----------
+  /** Why the last hit happened, in a few words. */
+  function explainHit(run) {
+    const h = run.hit;
+    if (!h) return '';
+    const k = KINDS[h.kind];
+    const what = h.w > 1 ? `${h.w} ${k.plural}` : k.name.replace(/^./, (c) => c.toUpperCase());
+    const it = h.w > 1 ? 'them' : 'it';
+    if (h.fell) return `${what}: you dropped onto ${it}.`;
+    if (h.kind === 'highBird') {
+      if (h.pose === 'run' && h.sinceDuck <= 2) return `${what}: your duck ended too soon. Duck a step later.`;
+      if (h.pose === 'run') return `${what}: duck under it with any dot key.`;
+      return `${what}: your jump met it. Duck under it, or jump when it is in cell 3 or 4.`;
+    }
+    if (h.sinceLanding === 0 && h.pose !== 'duck') return `${what}: you jumped too early and landed on ${it}.`;
+    if (h.pose === 'duck') return `${what}: you were ducking. Jump ${it}.`;
+    if (h.pose === 'run') return `${what}: no jump.`;
+    if (h.phase >= 3) return `${what}: you jumped too early.`;
+    return `${what}: you jumped too late.`;
+  }
+
+  /** Every symbol, for the help and the symbol pages. */
+  /** cell: the braille character (for pictures); text: what the game line
+   * writes for it in this dot mode. */
+  function legend(dotMode = '8') {
+    const dm = lookKey(dotMode);
+    const items = [];
+    for (const [key, p] of Object.entries(POSES)) {
+      if (dm !== 8 && key === 'high') continue; // the same as the top in 6 dots
+      items.push({ key, dino: true, name: dm !== 8 && key === 'top' ? 'you, high in a jump' : p.name, mask: p.look[dm] });
+    }
+    for (const [key, k] of Object.entries(KINDS)) {
+      if (dm === 'ueb' && key === 'lowBird') continue; // low birds do not come in print cells
+      items.push({ key, name: k.name, mask: k.look[dm], answer: k.answer });
+    }
+    items.push({ key: 'crash', name: 'a hit, in your cell', mask: CRASH[dm] });
+    return items.map((it) => {
+      const text = glyph(it.mask, dotMode);
+      const eight = dm === 'ueb' && UEB_EIGHT_DOT[text];
+      // eightDots: the dots VoiceOver's Eight dot table shows, where they differ.
+      return { ...it, cell: cell(it.mask), text, dots: dotWords(it.mask), eightDots: eight ? dotWords(eight).replace(/^dots? /, '') : '' };
+    });
+  }
+
+  return {
+    BIT, POSES, JUMP, BUFFER_FROM, KINDS, CRASH, COUNTDOWN, COUNTDOWN_UEB, UEB_TEXT, UEB_EIGHT_DOT, UEB_KINDS, RULES, SPEEDS, SPEED_NAMES, AHEAD,
+    dots, cell, glyph, lookKey, dotList, dotWords, rowSet,
+    createRun, clone, pose, dinoRows, hitter, jump, duck, standUp, step, stepTime, minGap,
+    masks, cells, explainHit, legend, random,
+  };
+})();
+</script>
+<script>
+// Pixel art for the picture sighted guides see, in the style of the
+// original game: a grey T-rex, cacti and pterodactyls on a desert line.
+// Drawn for this project (not the original's sprite sheet). '#' is ink,
+// 'o' is a hole in the ink (the eye), anything else is empty.
+var DinoSprites = (function () {
+  'use strict';
+  const T_REX_TOP = [
+    '............########..',
+    '...........##o#######.',
+    '...........##########.',
+    '...........##########.',
+    '...........##########.',
+    '...........#####......',
+    '...........########...',
+    '#.........#####.......',
+    '#........######.......',
+    '##......########......',
+    '###....##########.....',
+    '####..########..#.....',
+    '##############........',
+    '.#############........',
+    '..###########.........',
+    '...#########..........',
+    '....#######...........',
+  ];
+  const LEGS_A = [
+    '.....###.##...........',
+    '.....##...#...........',
+    '.....#....#...........',
+    '.....##...##..........',
+  ];
+  const LEGS_B = [
+    '.....##..###..........',
+    '.....#....##..........',
+    '.....#................',
+    '.....##...............',
+  ];
+  const LEGS_C = [
+    '.....###.###..........',
+    '.....##...##..........',
+    '.....#.....#..........',
+    '.....##....##.........',
+  ];
+  const DEAD_TOP = T_REX_TOP.map((row, i) => (i === 1 ? '...........##.#######.' : i === 0 ? '............#o######..' : i === 2 ? '...........###o######.' : row));
+
+  const T_REX_DUCK = [
+    '.........................########...',
+    '#........................##o#######.',
+    '##.......##########################.',
+    '####..#############################.',
+    '.##################################.',
+    '..############################......',
+    '...##############################...',
+    '.....#####....#####.................',
+    '......##.......##...................',
+    '......#........#....................',
+    '......##.......##...................',
+  ];
+  const T_REX_DUCK_B = T_REX_DUCK.slice(0, 7).concat([
+    '.....#####....#####.................',
+    '.......##.....##....................',
+    '........#....#......................',
+    '........##...##.....................',
+  ]);
+
+  const CACTUS_SMALL = [
+    '...###...',
+    '..#####..',
+    '..#####..',
+    '#.#####..',
+    '#.#####.#',
+    '#.#####.#',
+    '#.#####.#',
+    '#.#####.#',
+    '#######.#',
+    '.######.#',
+    '..#######',
+    '..#####..',
+    '..#####..',
+    '..#####..',
+    '..#####..',
+    '..#####..',
+    '..#####..',
+    '..#####..',
+  ];
+  const CACTUS_LARGE = [
+    '.....###.....',
+    '....#####....',
+    '....#####....',
+    '....#####....',
+    '##..#####....',
+    '##..#####..##',
+    '##..#####..##',
+    '##..#####..##',
+    '##..#####..##',
+    '##..#####..##',
+    '##..#####..##',
+    '##..#####..##',
+    '#########..##',
+    '.########..##',
+    '....#########',
+    '....########.',
+    '....#####....',
+    '....#####....',
+    '....#####....',
+    '....#####....',
+    '....#####....',
+    '....#####....',
+    '....#####....',
+    '....#####....',
+    '....#####....',
+  ];
+  // Facing left, towards the dino: beak, head, body, and a wing up or down.
+  const BIRD_UP = [
+    '.........#..............',
+    '.........##.............',
+    '.........###............',
+    '.........####...........',
+    '.........#####..........',
+    '...#.....######.........',
+    '..##.....#######........',
+    '.####....########.......',
+    '######################..',
+    '....###################.',
+    '........############....',
+    '..........########......',
+  ];
+  const BIRD_DOWN = [
+    '...#....................',
+    '..##....................',
+    '.####...................',
+    '######################..',
+    '....###################.',
+    '........###########.....',
+    '.........#######........',
+    '.........#####..........',
+    '.........###............',
+    '.........##.............',
+    '.........#..............',
+  ];
+
+  // The same height for both frames, with the body on the same row, so
+  // the bird flaps without bobbing.
+  const EMPTY = '.'.repeat(BIRD_UP[0].length);
+  const BIRD_UP_ALIGNED = BIRD_UP.concat(Array(4).fill(EMPTY));
+  const BIRD_DOWN_ALIGNED = Array(5).fill(EMPTY).concat(BIRD_DOWN);
+  const CLOUD = [
+    '........#####.......',
+    '.......#.....##.....',
+    '....###........#....',
+    '...#............#...',
+    '.##..............#..',
+    '#.................##',
+    '####################',
+  ];
+
+  /** Draws a sprite with its bottom left corner at (x, y), each map pixel a
+   * square of size px. */
+  function draw(ctx, map, x, y, px, ink, hole) {
+    const top = y - map.length * px;
+    for (let r = 0; r < map.length; r++) {
+      const row = map[r];
+      for (let c = 0; c < row.length; c++) {
+        const ch = row[c];
+        if (ch === '#') {
+          ctx.fillStyle = ink;
+          ctx.fillRect(x + c * px, top + r * px, px, px);
+        } else if (ch === 'o' && hole) {
+          ctx.fillStyle = hole;
+          ctx.fillRect(x + c * px, top + r * px, px, px);
+        }
+      }
+    }
+  }
+  const size = (map, px) => ({ w: map[0].length * px, h: map.length * px });
+
+  return {
+    standing: (step) => T_REX_TOP.concat([LEGS_A, LEGS_B, LEGS_A, LEGS_C][step % 2 ? 1 : 0]),
+    jumping: () => T_REX_TOP.concat(LEGS_C),
+    dead: () => DEAD_TOP.concat(LEGS_C),
+    ducking: (step) => (step % 2 ? T_REX_DUCK_B : T_REX_DUCK),
+    cactus: (large) => (large ? CACTUS_LARGE : CACTUS_SMALL),
+    bird: (step) => (step % 2 ? BIRD_DOWN_ALIGNED : BIRD_UP_ALIGNED),
+    cloud: () => CLOUD,
+    draw,
+    size,
+  };
+})();
+</script>
+<script>
+// ---------- Storage (never throws) ----------
+const store = {
+  get(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw == null ? fallback : JSON.parse(raw);
+    } catch {
+      return fallback;
+    }
+  },
+  set(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // Not remembered; this page still uses it.
+    }
+  },
+};
+
+// ---------- Speech (off by default) ----------
+// 'voice' speaks with the browser's own voice (speechSynthesis), which never
+// reaches the braille display. 'voiceover' writes to live regions: VoiceOver
+// and NVDA speak them but also flash them over the braille line for a few
+// seconds. Neither is ever used during play.
+class Speech {
+  constructor(root) {
+    const make = () => {
+      const el = document.createElement('div');
+      el.className = 'visually-hidden';
+      el.setAttribute('aria-live', 'polite');
+      // JAWS in Firefox ignores regions marked atomic. Each message replaces
+      // the region's whole text anyway.
+      if (!/firefox/i.test(navigator.userAgent)) el.setAttribute('aria-atomic', 'true');
+      root.append(el);
+      return el;
+    };
+    // Two regions used in turn, so a repeated message is still spoken.
+    this.regions = [make(), make()];
+    this.next = 0;
+    this.timer = 0;
+    this.mode = 'off';
+  }
+  say(text) {
+    this.clear();
+    if (!text) return;
+    if (this.mode === 'voice') {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = document.documentElement.lang || 'en';
+        speechSynthesis.speak(u);
+      } catch {
+        // No browser voice; the braille line has everything.
+      }
+    } else if (this.mode === 'voiceover') {
+      const region = this.regions[this.next++ % 2];
+      this.timer = setTimeout(() => {
+        region.textContent = text;
+      }, 60);
+    }
+  }
+  clear() {
+    clearTimeout(this.timer);
+    for (const el of this.regions) el.textContent = '';
+    try {
+      if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
+    } catch {
+      // Nothing to stop.
+    }
+  }
+}
+
+// ---------- Sounds: the original's three cues and a countdown, made with Web Audio ----------
+class Sounds {
+  constructor() {
+    this.ctx = null;
+    this.level = 'on'; // on, quiet or off
+  }
+  /** Browsers start audio only after a key press or click; called on every input. */
+  unlock() {
+    try {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        this.ctx = new AC();
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    } catch {
+      // No audio; the game is complete without it.
+    }
+  }
+  get blocked() {
+    return this.level !== 'off' && (!this.ctx || this.ctx.state !== 'running');
+  }
+  tone(freq, at, length, { type = 'square', gain = 0.07, to = freq } = {}) {
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    const amp = ctx.createGain();
+    const g = gain * (this.level === 'quiet' ? 0.25 : 1);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, at);
+    if (to !== freq) osc.frequency.exponentialRampToValueAtTime(to, at + length);
+    amp.gain.setValueAtTime(g, at);
+    amp.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    osc.connect(amp).connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + length + 0.02);
+  }
+  play(name) {
+    if (this.level === 'off') return;
+    this.unlock();
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const t = this.ctx.currentTime + 0.01;
+    switch (name) {
+      case 'jump': this.tone(480, t, 0.06, { to: 720 }); break;
+      case 'milestone': this.tone(1046, t, 0.09); this.tone(1318, t + 0.11, 0.09); break;
+      case 'hit': this.tone(220, t, 0.25, { type: 'sawtooth', to: 90, gain: 0.09 }); break;
+      case 'beat': this.tone(660, t, 0.08, { type: 'triangle', gain: 0.1 }); break;
+      case 'go': this.tone(990, t, 0.08, { type: 'triangle', gain: 0.1 }); break;
+      case 'pause': this.tone(330, t, 0.08, { type: 'triangle', gain: 0.08 }); break;
+    }
+  }
+}
+
+// The page: the game line (what the braille display shows), braille and
+// keyboard input, the step timer, speech, sounds, settings and the picture
+// for sighted helpers.
+(function () {
+  'use strict';
+  const E = DinoEngine;
+  const $ = (id) => document.getElementById(id);
+  const line = $('line');
+  const scene = $('scene');
+  const params = new URLSearchParams(location.search);
+  const TEST = params.has('test');
+  // NVDA and JAWS on Windows differ from VoiceOver in a few ways (the braille
+  // cursor, Escape, typed words); see README.md. ?windows=1 or ?windows=0
+  // overrides the guess.
+  const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  const WINDOWS = params.has('windows') ? params.get('windows') !== '0' : /^win/i.test(platform);
+
+  // ---------- Clock: real timers, or a manual clock for tests ----------
+  const clock = TEST
+    ? (() => {
+        let now = 0;
+        let id = 0;
+        const due = new Map();
+        return {
+          manual: true,
+          now: () => now,
+          after(ms, fn) {
+            due.set(++id, { at: now + ms, fn });
+            return id;
+          },
+          cancel(handle) {
+            due.delete(handle);
+          },
+          /** Moves time on, running every timer that falls due, in order. */
+          advance(ms) {
+            const end = now + ms;
+            for (;;) {
+              let next = null;
+              for (const [handle, t] of due) if (t.at <= end && (!next || t.at < next[1].at)) next = [handle, t];
+              if (!next) break;
+              due.delete(next[0]);
+              now = Math.max(now, next[1].at);
+              next[1].fn();
+            }
+            now = end;
+          },
+        };
+      })()
+    : {
+        manual: false,
+        now: () => performance.now(),
+        after: (ms, fn) => setTimeout(fn, ms),
+        cancel: (handle) => clearTimeout(handle),
+      };
+
+  // ---------- Settings ----------
+  const onOff = (v) => (v ? 'on' : 'off');
+  const OPTIONS = [
+    { key: 'speed', label: 'Speed', values: [1, 2, 3, 4, 5, 6, 7, 8], text: (v) => `${v}, ${E.SPEED_NAMES[v]}, ${E.SPEEDS[v][0]} milliseconds a step` },
+    { key: 'speedUp', label: 'Speed up every 100 points', values: [true, false], text: onOff },
+    { key: 'width', label: 'Braille display width', values: [14, 20, 32, 40, 80], text: (v) => `${v} cells` },
+    { key: 'cursorCell', label: 'Leave the last cell for the screen reader cursor, which NVDA and JAWS need', values: [false, true], text: onOff },
+    // VoiceOver's Contracted and Uncontracted tables delete braille cell
+    // characters, so on a Mac the game draws in print cells by default, which
+    // show in all three of VoiceOver's tables (engine.js). Eight dot keeps the
+    // full shapes, with dots 7 and 8, for VoiceOver's Eight dot table alone.
+    // Windows always uses braille cells (NVDA's and JAWS's tables keep them),
+    // with 6-dot shapes for a display without dots 7 and 8.
+    WINDOWS
+      ? { key: 'dots', label: 'Braille dots', values: ['8', '6'], text: (v) => (v === '8' ? '8-dot' : '6-dot, for a display without dots 7 and 8') }
+      : { key: 'dots', label: 'Braille table', values: ['ueb', '8'], text: (v) => ({ ueb: 'Contracted, uncontracted or eight dot', 8: 'Eight dot, with dots 7 and 8' })[v] },
+    { key: 'duckSteps', label: 'Duck length', values: [2, 3, 4, 5, 6, 0], text: (v) => (v ? `${v} steps` : 'until your next key') },
+    { key: 'lateHelp', label: 'Late press help', values: [0, 100, 150, 200, 300], text: (v) => (v ? `${v} milliseconds` : 'off') },
+    { key: 'birdsFrom', label: 'Birds come from', values: [450, 100, 0], text: (v) => (v ? `${v} points` : 'the start') },
+    { key: 'scoreCells', label: 'Score at the end of the line, which shortens the road by 6 cells', values: [false, true], text: onOff },
+    { key: 'numbers', label: 'Score numbers', values: ['computer', 'literary'], text: (v) => (settings.dots === 'ueb' ? 'set by your braille table: a number sign with Contracted or Uncontracted, computer braille digits with Eight dot' : v === 'computer' ? 'computer braille' : 'literary, with number sign') },
+    { key: 'speech', label: 'Speech', values: ['off', 'voice', 'voiceover'], text: (v) => ({ off: 'off', voice: 'browser voice', voiceover: 'screen reader announcements, which may also flash on braille' })[v] },
+    { key: 'sounds', label: 'Sounds', values: ['on', 'quiet', 'off'], text: (v) => v },
+    { key: 'routing', label: 'Routing keys during play', values: ['off', 'duck', 'jump'], text: (v) => v },
+  ];
+  const DEFAULTS = {
+    speed: 2, speedUp: true, width: 20, cursorCell: WINDOWS, dots: WINDOWS ? '8' : 'ueb', duckSteps: 4, lateHelp: 150, birdsFrom: 450,
+    scoreCells: false, numbers: 'computer', speech: 'off', sounds: 'on', routing: 'off',
+  };
+  const SETTINGS_KEY = 'braille-dino:settings';
+  // Version 2: print cells became the Mac default. Earlier saves hold the old
+  // default, Eight dot, which nobody chose (every save stored every setting),
+  // so on a Mac it is dropped once and the new default applies.
+  const SETTINGS_VERSION = 2;
+  const BEST_KEY = 'braille-dino:best';
+  const settings = { ...DEFAULTS };
+  const saved = TEST ? {} : store.get(SETTINGS_KEY, {});
+  if (saved && saved.v !== SETTINGS_VERSION && !WINDOWS) delete saved.dots;
+  for (const o of OPTIONS) if (saved && o.values.includes(saved[o.key])) settings[o.key] = saved[o.key];
+  const bests = (TEST ? {} : store.get(BEST_KEY, {})) || {};
+  const bestScore = () => bests[settings.speed] || 0;
+
+  const speech = new Speech($('announcer'));
+  const sounds = new Sounds();
+
+  // ---------- The game line ----------
+  // An editable box of two lines: a fixed first line, then the game. Tested
+  // with VoiceOver's Braille panel in Safari 27 (2026-10-11): braille shows
+  // only the line the caret is on, and on the second line VoiceOver puts
+  // nothing in front of it (no label, no field marker). Each change rebuilds
+  // both lines and puts the caret back, which VoiceOver shows on braille
+  // without speaking; changing the text alone did not refresh the display.
+  // Cells go with the caret at the end of the line, so VoiceOver's cursor
+  // marker is past the last cell; text goes with the caret at its start, so
+  // the display shows its beginning. Nothing may follow the box in the page:
+  // with the caret at its end, VoiceOver read the next character after it
+  // (the heading's "B", or "new line") on every redraw once a key had been
+  // pressed. So the box is last in body.html.
+  // NVDA (from its source, not yet tried on a display) adds a blank cell
+  // after the line for its cursor and pages forward when the cursor would
+  // fall past the display: a 20-cell line on a 20-cell display would show
+  // only that blank. The cursorCell setting, on by default on Windows,
+  // shortens every line of cells by one so the cursor fits in the last cell.
+  // The caret stays at the end: at the start, NVDA's cursor (dots 7 and 8)
+  // would blink over the dino.
+  const FIRST_LINE = 'Dino';
+  let shown = null;
+  let shownCaret = 'end';
+  let renderedAt = -1e9;
+  const onlyCells = (text) => /^[\u2800-\u28ff]+$/.test(text);
+  const row = () => line.children[1] || null;
+
+  /** Shows text or cells on the game line. caret: 'end' or 'start'. */
+  function show(text, caret = onlyCells(text) ? 'end' : 'start') {
+    const top = document.createElement('div');
+    top.className = 'first-line';
+    top.textContent = FIRST_LINE;
+    const game = document.createElement('div');
+    game.textContent = text || '\u2800';
+    line.replaceChildren(top, game);
+    shown = text;
+    shownCaret = caret;
+    placeCaret();
+    renderedAt = clock.now();
+  }
+
+  /** Where the caret belongs on the second line. */
+  function caretSpot() {
+    const node = row() && row().firstChild;
+    return node ? { node, offset: shownCaret === 'end' ? node.length : 0 } : null;
+  }
+
+  function placeCaret() {
+    // Only while the line has focus: a selection elsewhere could pull focus.
+    if (document.activeElement !== line) return;
+    const spot = caretSpot();
+    if (!spot) return;
+    const r = document.createRange();
+    r.setStart(spot.node, spot.offset);
+    r.collapse(true);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
+
+  function caretIsPlaced() {
+    const sel = getSelection();
+    const spot = caretSpot();
+    return !!spot && sel.rangeCount === 1 && sel.isCollapsed && sel.anchorNode === spot.node && sel.anchorOffset === spot.offset;
+  }
+
+  /** Puts the game's text back after something typed into the field. */
+  function restoreLine() {
+    if (shown === null) return;
+    if (line.children.length !== 2 || row().textContent !== (shown || '\u2800') || line.firstChild.textContent !== FIRST_LINE) show(shown, shownCaret);
+    else if (!caretIsPlaced()) placeCaret();
+  }
+
+  /** What is on the line now, and its words: a screen that shows braille
+   * cells shows its words instead while the line does not have focus, so
+   * VoiceOver never reads the cells aloud when focus comes back. cells: the
+   * text has game cells in it (in the 'ueb' dot mode they are print
+   * characters, so this cannot be told from the text); caret: where the
+   * caret goes ('end' for a line of cells alone). */
+  let current = { text: '', spoken: '', cells: false };
+  let spokeAt = -1e9;
+  const hasCells = (text) => /[\u2801-\u28ff]/.test(text);
+
+  /** A screen of text: shown on the line and, with speech on, spoken.
+   * quiet: show it without speaking (focus is moving, and VoiceOver reads
+   * the line itself when it gets there). */
+  function present(text, spoken = text, { quiet = false, cells = hasCells(text), caret } = {}) {
+    current = { text, spoken, cells, caret };
+    show(text, caret);
+    if (quiet || speech.mode === 'off') speech.clear();
+    else {
+      speech.say(spoken);
+      if (speech.mode === 'voiceover') spokeAt = clock.now();
+    }
+  }
+
+  // ---------- Numbers in braille cells (the score at the end of the line) ----------
+  const COMPUTER_DIGITS = '⠴⠂⠆⠒⠲⠢⠖⠶⠦⠔'; // 0 to 9, lower cells, as 8-dot computer braille
+  const LITERARY_DIGITS = '⠚⠁⠃⠉⠙⠑⠋⠛⠓⠊'; // 0 to 9 after the number sign
+  const SCORE_CELLS = 6; // a blank, then up to 5 cells
+  function scoreField(score) {
+    const digits = String(score);
+    if (settings.dots === 'ueb') return ('\u2800' + digits.slice(-4)).padEnd(SCORE_CELLS - 1, '\u2800');
+    const body = settings.numbers === 'literary'
+      ? '⠼' + [...digits.slice(-4)].map((d) => LITERARY_DIGITS[d]).join('')
+      : [...digits.slice(-5)].map((d) => COMPUTER_DIGITS[d]).join('');
+    return ('⠀' + body).padEnd(SCORE_CELLS, '⠀');
+  }
+  /** The cells a line may use: the display, less the screen reader's cursor cell. */
+  const lineWidth = () => settings.width - (settings.cursorCell ? 1 : 0);
+  const fieldWidth = () => (settings.scoreCells ? Math.max(7, lineWidth() - SCORE_CELLS) : lineWidth());
+
+  // ---------- State ----------
+  let screen = 'title';
+  let run = null;
+  let mode = 'play'; // or 'practice'
+  let practiceKinds = null;
+  let stepTimer = 0;
+  let holdTimer = 0;
+  let pendingHit = null;
+  let lastStep = null;
+  let countdown = 0;
+  let nextAt = 0;
+  let list = null; // a menu or the settings: { kind, title, items, index, back }
+  let pager = null; // { pages, index, back }
+  let lastRecord = false;
+  let crashRun = null;
+  let wordInputSeen = false;
+  let wordInputExplained = false;
+  let returnTo = null; // what the pause or game over came from, for lists
+
+  function stopTimers() {
+    clock.cancel(stepTimer);
+    clock.cancel(holdTimer);
+    stepTimer = holdTimer = 0;
+  }
+
+  // ---------- Text for each screen ----------
+  const bestText = () => (bestScore() ? ` Best ${bestScore()} at speed ${settings.speed}, ${E.SPEED_NAMES[settings.speed]}.` : '');
+  function titleText() {
+    return `Dino. Space: play. Any other key: menu.${bestText()}`;
+  }
+  function wordNote() {
+    if (!wordInputSeen || wordInputExplained) return '';
+    wordInputExplained = true;
+    return WINDOWS
+      ? ' Your braille keys arrived as whole words. To duck, set your screen reader\'s braille input table to computer braille, which sends each key at once. In NVDA: Settings, Braille, Input table, English U.S. 8 dot computer braille.'
+      : ' Your braille keys arrived as whole words, so only Space works during play, which is enough. To duck, VoiceOver\'s braille input needs its Eight dot table, which sends each key at once.';
+  }
+  function pausedText(reason) {
+    const why = reason === 'focus' ? 'Paused, you left the game line.' : reason === 'stall' ? 'Paused, the game was held up.' : 'Paused.';
+    const what = mode === 'practice' ? ` ${run.cleared} cleared, ${run.hits} ${run.hits === 1 ? 'hit' : 'hits'}.` : ` ${run.score} points.`;
+    return `${why}${what} Space: go on. Any other key: menu.${wordNote()}`;
+  }
+  function overText() {
+    const best = lastRecord ? ' New best!' : run.mixedSpeed ? ' The speed changed during the run, so no best is kept.' : bestText();
+    return `Game over, ${run.score} points. ${E.explainHit(run)}${best} Space: play again. Any other key: menu.${wordNote()}`;
+  }
+  function practiceText() {
+    return `Practice: ${run.cleared} cleared, ${run.hits} ${run.hits === 1 ? 'hit' : 'hits'}. Space: again. Any other key: menu.`;
+  }
+
+  // ---------- Pages: help, symbols, display check ----------
+  /** A symbol's dots, and in print cells what VoiceOver's Eight dot table shows instead. */
+  const dotsText = (s) => (s.eightDots ? `${s.dots}, or ${s.eightDots} with Eight dot` : s.dots);
+  function legendOf(key) {
+    return E.legend(settings.dots).find((s) => s.key === key);
+  }
+  /** What late press help gives at this speed: it never takes more than the
+   * step time less 60 milliseconds, so a held hit settles within the beat. */
+  function lateHelpWords() {
+    const [start, fastest] = E.SPEEDS[settings.speed];
+    const at = (ms) => Math.max(0, Math.min(settings.lateHelp, ms - 60));
+    const now = at(start);
+    const later = settings.speedUp ? at(fastest) : now;
+    const cut = now < settings.lateHelp ? `, which is all this speed allows of your ${settings.lateHelp}` : '';
+    return `at speed ${settings.speed}, a press up to ${now} milliseconds after the step that would hit you still counts${cut}${later < now ? `, down to ${later} as the game speeds up` : ''}.`;
+  }
+  function helpPages() {
+    // The dots, and in print cells what VoiceOver's Eight dot table shows instead.
+    const L = (k) => {
+      const s = legendOf(k) || legendOf('top');
+      return s.eightDots ? `${s.dots} (${s.eightDots} with Eight dot)` : s.dots;
+    };
+    const six = settings.dots !== '8';
+    const ueb = settings.dots === 'ueb';
+    return [
+      'How to play. Space: next page. Any other key: back.',
+      `You are the dino in cell 1. The road runs to the right, and things come towards you one cell at each step. When one reaches cell 1 it vanishes: you passed it, or cell 1 ${ueb ? `shows ${L('crash')}` : 'fills with all its dots'}, a hit.`,
+      `Your dino is ${L('run')} when running${six ? '' : ', an o standing on the ground'}. ${ueb ? 'What decides a hit is height. Low in a jump you clear only a small cactus; high in a jump you clear the cacti; ducking passes under the high bird. With Contracted or Uncontracted the dots show those heights: something hits you when it shares a dot row with your dino. With Eight dot, the large cactus shows other dots but hits the same way.' : 'What decides a hit is height: something hits you when it shares a dot row with your dino. Left and right in the cell do not matter.'}`,
+      `Space jumps, on either space bar. Your shape rises out of the cell: ${six ? `${L('low')}, then ${L('top')} high in the jump` : `${L('low')}, then ${L('high')}, then ${L('top')} at the top`}, and down again, landing 6 steps after you press.${six ? '' : ' It is your o rising out of the top of the cell, so what is left of it shows how high you are.'}`,
+      'Space in the last 2 steps of a jump, as you come down, jumps again as you land. Earlier in a jump it does nothing.',
+      `Any other braille key ducks${settings.duckSteps ? ` for ${settings.duckSteps} steps` : ' until your next key, which stands you up'}: ${L('duck')}, low in the cell. In the air it drops you at once, and you duck as you land. P pauses. Menu, Key check shows how each of your keys arrives.`,
+      WINDOWS
+        ? 'On the keyboard: Space jumps, Down arrow ducks while held, P pauses. With NVDA or JAWS, jump with Space, not the Up arrow, and duck with a letter: arrows make the screen reader read the line. Escape belongs to the screen reader, so P is the pause key.'
+        : 'On a Mac keyboard: Space or Up arrow jumps, Down arrow ducks while held, Escape pauses.',
+      `Cacti touch the ground. Small cactus: ${L('small')}. Large cactus: ${L('large')}. Jump when the front of a cactus is in cell 2 or 3. A single small one can be jumped from as far as cell 6.`,
+      ueb
+        ? `Birds. The high bird, ${L('highBird')}, flies at head height: duck under it, or jump when it is in cell 3 or 4, so the top of your jump passes over it. Low birds do not come with this Braille table setting.`
+        : `Birds. The low bird, ${L('lowBird')}, ${ueb ? 'the same cell as your duck, touches the ground' : 'slants down to the ground'}: jump it. The high bird, ${L('highBird')}, flies at head height: duck under it, or jump when it is in cell 3 or 4, so the top of your jump passes over it.`,
+      `Birds come from ${settings.birdsFrom ? `${settings.birdsFrom} points` : 'the start'}. Groups of 2 or 3 large cacti come from 150 points.`,
+      `Your score is the cells you run. Every 100 points${[settings.sounds !== 'off' && ' a chime plays', settings.speedUp && ' the game gets a little faster'].filter(Boolean).join(' and') || ' nothing changes, with your settings'}. Best scores are kept for each speed.`,
+      settings.lateHelp
+        ? `Late press help: ${lateHelpWords()} Settings has it, the speed and more.`
+        : 'Late press help is off, so a press must come before the step that would hit you. Settings can turn it on.',
+      `${settings.scoreCells ? `The score shows at the end of the line: the road is cells 1 to ${fieldWidth()}, then a blank cell, then the score.` : 'The score shows when you pause and at game over. Settings can also show it at the end of the line.'}`,
+      `Before a run starts or goes on, cell 1 counts down in place of your dino: ${ueb ? 'three dots, two, one' : 'three rows, two, one'}. Then your dino appears and the road moves. If the game line loses focus, the game pauses.`,
+      ...(WINDOWS
+        ? [
+            'Ducking needs your screen reader\'s braille input set to computer braille, which sends each key at once. NVDA: Settings, Braille, Input table, English U.S. 8 dot computer braille. JAWS: Settings Center, Braille, input set to Computer Braille. With other tables only Space works during play, and that is enough: every course can be passed with Space alone.',
+            'NVDA tips: the game needs focus mode. If NVDA says browse mode, or keys stop doing anything, press NVDA+Space. Escape, and Space with dots 1 5, switch to browse mode. To stop NVDA saying space on every jump, press NVDA+2 until typed characters are off, or NVDA+S for on-demand speech. If the blinking last cell distracts you, turn off Show cursor in Settings, Braille.',
+            'JAWS tips: the game needs forms mode. If keys do nothing, press Enter, dot 8, on the game line, or Insert+Z to turn off the virtual cursor for this tab. Escape, and Space with E, leave forms mode. Insert+2 until JAWS says none stops typing echo. In Settings Center, set Placement of status cells to None.',
+            'Avoid Space chords during play: NVDA and JAWS take them as arrows, Escape or Tab. Menu, Display check shows whether the line fits your display.',
+          ]
+        : [
+            `Ducking needs braille keys sent one at a time, as VoiceOver does when its braille input table is Eight dot. With Contracted or Uncontracted input, braille keys arrive as words when you press Space, so during play only Space works, and that is enough: every course can be passed with Space alone. Dot 7 or dot 8 on its own may still duck: Key check shows what arrives.`,
+            'VoiceOver tips: turn off hints (VoiceOver Utility, Verbosity, Hints), or a hint flashes over the line after you arrive. If VoiceOver says space when you jump, set typing echo to nothing. Do Not Disturb stops notifications covering the line.',
+            'Sounds start after you press a key on the Mac keyboard or click the page once; braille keys alone may not start them in Safari.',
+          ]),
+      'End of help. Space goes back.',
+    ].map((text) => ({ text }));
+  }
+  function symbolPages() {
+    const pages = [{ text: 'Symbols. Each page names a symbol, then shows it. Space: next. Any other key: back.' }];
+    for (const s of E.legend(settings.dots)) {
+      const name = s.name.replace(/^./, (c) => c.toUpperCase());
+      const answer = s.answer ? ` ${s.answer}` : '';
+      const dots = dotsText(s);
+      pages.push({ text: `${name}: ${s.text} ${dots}.${answer}`, speech: `${name}, ${dots}.${answer}`, cells: true });
+    }
+    const example = E.createRun({ seed: 1 });
+    example.nextX = Infinity;
+    example.obstacles = [
+      { kind: 'small', x: 4, w: 1, passed: false },
+      { kind: 'large', x: 8, w: 2, passed: false },
+      { kind: 'highBird', x: 14, w: 1, passed: false },
+    ];
+    const words = 'An example line: you in cell 1, a small cactus in cell 5, two large cacti in cells 9 and 10, and a high bird in cell 15.';
+    pages.push({ text: words, speech: words });
+    pages.push({ text: E.cells(example, { dotMode: settings.dots, width: Math.min(lineWidth(), 20) }), speech: 'The example line.', cells: true, caret: 'end' });
+    pages.push({ text: 'End of symbols. Space goes back.' });
+    return pages;
+  }
+  function checkPages() {
+    const eight = settings.dots === '8';
+    const ueb = settings.dots === 'ueb';
+    const g = (...d) => E.glyph(E.dots(...d), settings.dots);
+    const w = lineWidth();
+    const spare = settings.cursorCell;
+    // Print cells have no full cell; their marks are dots 2 4, the same in
+    // every VoiceOver table.
+    const mark = ueb ? g(2, 4) : eight ? g(1, 2, 3, 4, 5, 6) : g(2, 5);
+    const markWords = ueb ? 'dots 2 4' : eight ? 'the six dots 1 to 6' : 'dots 2 5';
+    const cells = [];
+    for (let x = 0; x < w; x++) cells.push((x + 1) % 5 === 0 ? mark : '\u2800');
+    cells[0] = legendOf('run').text;
+    cells[1] = legendOf('small').text;
+    if (ueb) cells[2] = legendOf('duck').text;
+    cells[w - 1] = ueb ? mark : eight ? g(1, 2, 3, 4, 5, 6, 7, 8) : g(1, 2, 3, 4, 5, 6);
+    const last = ueb ? `the last mark, ${markWords},` : eight ? 'the cell with all 8 dots' : 'the cell with all 6 dots';
+    // Braille cells vanish with VoiceOver's Contracted and Uncontracted tables.
+    const blank = WINDOWS || !eight ? '' : ' If the test line is blank, VoiceOver is using its Contracted or Uncontracted table: choose Braille table, Contracted, uncontracted or eight dot, in settings.';
+    const noLow = !eight ? '' : WINDOWS
+      ? ' If cell 2 is empty, turn on 8-dot braille in your screen reader (JAWS: 8 Dot Braille), or choose Braille dots, 6-dot, in settings.'
+      : ' If cell 2 is empty, choose Braille table, Contracted, uncontracted or eight dot, in settings.';
+    return [
+      { text: `Display check. Space shows a test line ${w} cells wide: the Braille display width setting${spare ? ', less the last cell, which is left for your screen reader\'s cursor' : ''}. Any other key: back.` },
+      { text: cells.join(''), speech: 'The test line.', cells: true, caret: 'end' },
+      { text: `Cell 1 should be your dino, ${legendOf('run').dots}, with nothing before it. Cell 2 is a small cactus, ${legendOf('small').dots}.${ueb ? ` Cell 3 is your shape when ducking, ${dotsText(legendOf('duck'))}; if it takes two cells, the braille table is not one of VoiceOver's own: choose Braille table, Eight dot, with dots 7 and 8.` : ''}${noLow}${blank}${spare ? ' If the display is blank, or the dino is not in cell 1, the line does not fit: check Braille display width in settings.' : ''}` },
+      spare
+        ? { text: `${last.replace(/^./, (c) => c.toUpperCase())} should be next to last on your display, and the last cell holds only your screen reader's cursor, which may blink. If not, change Braille display width in settings. Every fifth cell is ${markWords}.` }
+        : { text: `${last.replace(/^./, (c) => c.toUpperCase())} should be the last cell of your display. If not, change Braille display width in settings. Every fifth cell is ${markWords}.` },
+      WINDOWS
+        ? { text: 'The other cells should be empty. NVDA\'s blinking cursor can be turned off with Settings, Braille, Show cursor.' }
+        : { text: `The other cells should be empty. If dots 7 and 8 show under every cell, turn off Use dots 7 and 8 to indicate VoiceOver cursor in VoiceOver Utility, Braille, Layout${eight ? ', or choose Braille table, Contracted, uncontracted or eight dot' : ''}.` },
+      { text: 'End of the check. Space goes back.' },
+    ];
+  }
+  function openPages(pages, back) {
+    pager = { pages, index: 0, back };
+    screen = 'pager';
+    showPage();
+  }
+  function showPage() {
+    const page = pager.pages[pager.index];
+    present(page.text, page.speech || page.text, page.cells ? { cells: true, caret: page.caret } : undefined);
+  }
+  function pageMove(dir) {
+    const i = pager.index + dir;
+    if (i >= pager.pages.length) return leave(pager.back);
+    pager.index = Math.max(0, i);
+    showPage();
+  }
+
+  // ---------- Lists: menus and settings ----------
+  const remembered = {};
+  function openList(kind, title, items, back) {
+    const start = remembered[title] < items.length ? remembered[title] : 0;
+    list = { kind, title, items, index: start, back };
+    screen = 'list';
+    showItem(true);
+  }
+  function itemText(item) {
+    if (item.option) {
+      const o = item.option;
+      return `${o.label}: ${o.text(settings[o.key])}`;
+    }
+    return item.label;
+  }
+  function showItem(first) {
+    const item = list.items[list.index];
+    const help = list.kind === 'settings' ? 'Space: next. Any other key: change.' : 'Space: next. Any other key: choose.';
+    const intro = first ? `${list.title}. ${help} ` : '';
+    present(`${intro}${itemText(item)}, ${list.index + 1} of ${list.items.length}`);
+  }
+  function listMove(dir) {
+    const n = list.items.length;
+    list.index = (list.index + dir + n) % n;
+    showItem(false);
+  }
+  function listChoose(dir = 1) {
+    const item = list.items[list.index];
+    if (item.option) {
+      const o = item.option;
+      const i = o.values.indexOf(settings[o.key]);
+      setOption(o.key, o.values[(i + dir + o.values.length) % o.values.length]);
+      showItem(false);
+    } else {
+      // Come back to an item that returns here (help, settings); anything
+      // else (Play, Quit, Back) starts from the top next time.
+      if (item.keep) remembered[list.title] = list.index;
+      else delete remembered[list.title];
+      item.run();
+    }
+  }
+
+  /** Goes back to where a list or pages came from. */
+  function leave(back) {
+    list = null;
+    pager = null;
+    if (typeof back === 'function') back();
+    else showTitle();
+  }
+
+  const helpItems = (back) => [
+    { label: 'How to play', keep: true, run: () => openPages(helpPages(), back) },
+    { label: 'Symbols', keep: true, run: () => openPages(symbolPages(), back) },
+    { label: 'Settings', keep: true, run: () => openSettings(back) },
+    { label: 'Help and settings on the page', keep: true, run: () => openPage() },
+  ];
+  function openMainMenu() {
+    const back = openMainMenu;
+    openList('menu', 'Menu', [
+      { label: 'Play', run: () => startRun() },
+      { label: 'Practice', keep: true, run: () => openPractice(back) },
+      ...helpItems(back),
+      { label: 'Display check', keep: true, run: () => openPages(checkPages(), back) },
+      { label: 'Key check', keep: true, run: () => openKeyCheck(back) },
+      { label: 'Start screen', run: () => showTitle() },
+    ], showTitle);
+  }
+  function openSettings(back) {
+    openList('settings', 'Settings', [...OPTIONS.map((o) => ({ option: o })), { label: 'Back', run: () => leave(back) }], back);
+  }
+  function openPractice(back) {
+    const start = (kinds) => () => startRun({ practice: true, kinds });
+    openList('menu', 'Practice', [
+      { label: 'Cacti only, hits do not end the run', run: start(['small', 'large']) },
+      { label: 'Birds only', run: start(['lowBird', 'highBird']) },
+      { label: 'Everything', run: start(null) },
+      { label: 'Back', run: () => leave(back) },
+    ], back);
+  }
+  function openPauseMenu() {
+    const back = () => {
+      screen = 'paused';
+      present(pausedText());
+    };
+    const backToMenu = openPauseMenu;
+    openList('menu', 'Paused', [
+      { label: 'Go on', run: () => resume() },
+      ...helpItems(backToMenu),
+      { label: mode === 'practice' ? 'End practice' : 'Quit this run', run: () => (mode === 'practice' ? endPractice() : showTitle()) },
+    ], back);
+  }
+  function openOverMenu() {
+    const backToMenu = openOverMenu;
+    const back = () => {
+      screen = 'over';
+      present(overText());
+    };
+    openList('menu', 'Game over', [
+      { label: 'Play again', run: () => startRun() },
+      { label: 'Feel the crash', keep: true, run: () => showCrash(backToMenu) },
+      { label: 'Practice', keep: true, run: () => openPractice(backToMenu) },
+      ...helpItems(backToMenu),
+      { label: 'Start screen', run: () => showTitle() },
+    ], back);
+  }
+  function showCrash(back) {
+    screen = 'crashView';
+    returnTo = back;
+    const words = `The line at the hit. ${E.explainHit(crashRun)} Any key goes back.`;
+    present(`${E.cells(crashRun, { dotMode: settings.dots, width: fieldWidth() })} ${words}`, words, { cells: true });
+    drawScene(crashRun);
+  }
+
+  function setOption(key, value) {
+    settings[key] = value;
+    if (!TEST) store.set(SETTINGS_KEY, { ...settings, v: SETTINGS_VERSION });
+    applySettings();
+    syncForm();
+  }
+  /** The obstacle kinds a run may bring: low birds do not come in print
+   * cells (engine.js, UEB_KINDS). kinds: a practice choice, or null for all. */
+  function courseKinds(kinds) {
+    return settings.dots === 'ueb' ? (kinds || Object.keys(E.KINDS)).filter((k) => E.UEB_KINDS.includes(k)) : kinds;
+  }
+
+  function applySettings() {
+    sounds.level = settings.sounds;
+    speech.mode = settings.speech;
+    if (settings.speech === 'off') speech.clear();
+    if (run) {
+      run.duckSteps = settings.duckSteps;
+      run.birdsFrom = settings.birdsFrom;
+      if (settings.speed !== run.speed) run.mixedSpeed = true;
+      // Switched to print cells mid-run: no more low birds, and the ones
+      // already made ahead go (a gap only grows, so every course stays fair).
+      run.kinds = courseKinds(practiceKinds);
+      if (settings.dots === 'ueb') run.obstacles = run.obstacles.filter((o) => o.kind !== 'lowBird' || o.passed);
+    }
+    fillSymbolTable();
+    drawScene();
+  }
+
+  // ---------- Screens ----------
+  function showTitle({ quiet = false } = {}) {
+    stopTimers();
+    clearPendingHit();
+    list = pager = null;
+    screen = 'title';
+    run = null;
+    present(titleText(), undefined, { quiet });
+    drawScene();
+  }
+
+  function newSeed() {
+    if (params.has('seed')) return Number(params.get('seed')) >>> 0;
+    const a = new Uint32Array(1);
+    crypto.getRandomValues(a);
+    return a[0];
+  }
+
+  function startRun({ practice = false, kinds = null } = {}) {
+    stopTimers();
+    clearPendingHit();
+    speech.clear();
+    list = pager = null;
+    mode = practice ? 'practice' : 'play';
+    practiceKinds = kinds;
+    run = E.createRun({ seed: newSeed(), practice, kinds: courseKinds(kinds), duckSteps: settings.duckSteps, birdsFrom: settings.birdsFrom });
+    run.speed = settings.speed;
+    lastRecord = false;
+    countIn();
+  }
+
+  const BEAT_MS = 600;
+  const CRASH_MS = 1200;
+  /** About how long VoiceOver shows an announcement on braille. */
+  const ANNOUNCEMENT_MS = 4000;
+
+  /** Shows the line still, with a shrinking bar in cell 1 (three rows, two,
+   * one), then starts moving. */
+  function countIn() {
+    stopTimers();
+    screen = 'ready';
+    countdown = 3;
+    // A VoiceOver announcement may still be showing over the line.
+    const wait = speech.mode === 'voiceover' ? Math.max(0, ANNOUNCEMENT_MS - (clock.now() - spokeAt)) : 0;
+    const beat = () => {
+      if (countdown > 0) {
+        sounds.play('beat');
+        render();
+        holdTimer = clock.after(BEAT_MS, () => {
+          countdown--;
+          beat();
+        });
+        return;
+      }
+      holdTimer = 0;
+      screen = 'playing';
+      sounds.play('go');
+      render();
+      lastStep = null;
+      scheduleStep(E.stepTime(run, settings.speed, settings.speedUp));
+    };
+    if (wait > 0) {
+      render();
+      holdTimer = clock.after(wait, beat);
+    } else beat();
+  }
+
+  function pause(reason) {
+    if (screen !== 'playing' && screen !== 'ready') return;
+    stopTimers();
+    countdown = 0;
+    if (pendingHit) {
+      commitHit();
+      if (screen !== 'playing') return;
+      stopTimers();
+    }
+    // A held Down key cannot be followed while paused: let it go.
+    run.dino.duckHeld = false;
+    screen = 'paused';
+    sounds.play('pause');
+    present(pausedText(reason), undefined, { quiet: reason === 'focus' });
+    drawScene();
+  }
+
+  function resume() {
+    list = pager = null;
+    speech.clear();
+    countIn();
+  }
+
+  function endRun() {
+    stopTimers();
+    sounds.play('hit');
+    if (!run.mixedSpeed && run.score > bestScore()) {
+      lastRecord = true;
+      bests[settings.speed] = run.score;
+      if (!TEST) store.set(BEST_KEY, bests);
+    }
+    crashRun = E.clone(run);
+    screen = 'crash';
+    render();
+    holdTimer = clock.after(CRASH_MS, () => {
+      holdTimer = 0;
+      screen = 'over';
+      present(overText());
+    });
+  }
+
+  function endPractice() {
+    stopTimers();
+    list = pager = null;
+    screen = 'practiceOver';
+    present(practiceText());
+  }
+
+  // ---------- Steps ----------
+  const lateHelp = () => Math.max(0, Math.min(settings.lateHelp, E.stepTime(run, settings.speed, settings.speedUp) - 60));
+
+  function scheduleStep(delay) {
+    nextAt = clock.now() + delay;
+    stepTimer = clock.after(delay, onStep);
+  }
+
+  function onStep() {
+    stepTimer = 0;
+    if (screen !== 'playing') return;
+    if (!clock.manual && clock.now() - nextAt > 1000) {
+      // The page was held up (a busy Mac or a sleeping tab): stop rather than rush.
+      pause('stall');
+      return;
+    }
+    const before = E.clone(run);
+    const events = E.step(run);
+    lastStep = { before };
+    const t = E.stepTime(run, settings.speed, settings.speedUp);
+    // Keep to the beat, but never catch up a long stall in a rush.
+    const due = Math.max(clock.now() + t / 2, nextAt + t);
+    const allowance = lateHelp();
+    if (events.includes('hit') && allowance > 0) {
+      // Not final yet: a press that arrives in time replays this step with
+      // it, as if it had come just before. The line shows the honest overlap.
+      render();
+      pendingHit = { events, due, timer: clock.after(allowance, commitHit) };
+      return;
+    }
+    finishStep(events, due);
+  }
+
+  /** Plays a step's sounds, then draws it and sets the next step for due (an
+   * absolute time, so a held hit does not shift the beat). */
+  function finishStep(events, due) {
+    play(events);
+    if (run.over) {
+      endRun();
+      return;
+    }
+    render();
+    scheduleStep(Math.max(0, due - clock.now()));
+    nextAt = due;
+  }
+
+  function commitHit() {
+    if (!pendingHit) return;
+    const { events, due } = pendingHit;
+    clearPendingHit();
+    finishStep(events, due);
+  }
+
+  function clearPendingHit() {
+    if (pendingHit) clock.cancel(pendingHit.timer);
+    pendingHit = null;
+  }
+
+  /** A late press: replay the last step with the press made just before it. */
+  function rescue(kind, options) {
+    if (!pendingHit || !lastStep) return false;
+    const trial = E.clone(lastStep.before);
+    const pre = kind === 'jump' ? E.jump(trial) : E.duck(trial, options);
+    if (!pre.length || pre.includes('hit') || trial.over) return false;
+    const events = E.step(trial);
+    if (events.includes('hit')) return false;
+    const { due } = pendingHit;
+    clearPendingHit();
+    run = trial;
+    finishStep([...pre, ...events], due);
+    return true;
+  }
+
+  function play(events) {
+    for (const e of events) {
+      if (e === 'jump') sounds.play('jump');
+      else if (e === 'milestone') sounds.play('milestone');
+      else if (e === 'hit' && run.practice) sounds.play('hit');
+    }
+  }
+
+  function move(kind, options) {
+    if (screen !== 'playing') return;
+    if (pendingHit) {
+      if (kind === 'jump' || kind === 'duck') rescue(kind, options);
+      else if (kind === 'stand') {
+        // Down let go while a hit is held: whatever happens, it is let go.
+        run.dino.duckHeld = false;
+        if (lastStep) lastStep.before.dino.duckHeld = false;
+      }
+      return;
+    }
+    const events = kind === 'jump' ? E.jump(run) : kind === 'duck' ? E.duck(run, options) : E.standUp(run);
+    if (!events.length) return;
+    play(events);
+    if (run.over) endRun();
+    else render();
+  }
+
+  // ---------- Drawing ----------
+  function render() {
+    if (!run) return;
+    let text = E.cells(run, {
+      dotMode: settings.dots,
+      width: fieldWidth(),
+      crash: screen === 'crash',
+      countdown: screen === 'ready' ? countdown : 0,
+    });
+    if (settings.scoreCells) text += scoreField(run.score);
+    current = { text, spoken: text, cells: true, caret: 'end' };
+    show(text, 'end');
+    drawScene();
+  }
+
+  // The picture for sighted guides: the same world, drawn in the style of
+  // the original game (sprites.js). It follows the run's state; the braille
+  // line is the game.
+  const CELL = 40; // canvas pixels per braille cell
+  const GROUND = 124; // the desert line
+  const LIFT = { run: 0, duck: 0, low: 26, high: 52, top: 74 };
+  const pad5 = (n) => String(Math.min(99999, n)).padStart(5, '0');
+
+  function drawScene(r = run) {
+    const S = DinoSprites;
+    const ctx = scene.getContext('2d');
+    const width = fieldWidth();
+    const W = width * CELL;
+    scene.width = W;
+    scene.height = 150;
+    const style = getComputedStyle(document.documentElement);
+    const ink = style.getPropertyValue('--ink').trim() || '#535353';
+    const sky = style.getPropertyValue('--sky').trim() || '#ffffff';
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, scene.height);
+    const steps = r ? r.steps : 0;
+
+    // Clouds drift slowly; the ground moves one cell a step.
+    ctx.globalAlpha = 0.35;
+    const span = W + 240;
+    for (let i = 0; i * 260 < span; i++) {
+      const x = ((((i * 260 + 120 - steps * 6) % span) + span) % span) - 120;
+      S.draw(ctx, S.cloud(), x, 34 + (i % 3) * 14, 2, ink);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = ink;
+    ctx.fillRect(0, GROUND, W, 2);
+    for (let x = 0; x < width + 1; x++) {
+      const k = (x + steps) % 7;
+      const left = x * CELL;
+      if (k === 1) ctx.fillRect(left + 6, GROUND + 6, 4, 2);
+      if (k === 3) ctx.fillRect(left + 22, GROUND + 9, 7, 2);
+      if (k === 5) {
+        ctx.fillRect(left + 12, GROUND - 2, 6, 2);
+        ctx.fillRect(left + 30, GROUND + 5, 2, 2);
+      }
+    }
+
+    // Score, top right, as the original shows it.
+    ctx.font = 'bold 15px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    const best = bestScore();
+    ctx.globalAlpha = 0.7;
+    ctx.fillText(`HI ${pad5(best)}`, W - 82, 8);
+    ctx.globalAlpha = 1;
+    ctx.fillText(pad5(r ? r.score : 0), W - 10, 8);
+
+    if (r) {
+      for (const o of r.obstacles) {
+        const k = E.KINDS[o.kind];
+        for (let i = 0; i < o.w; i++) {
+          const cx = o.x + i;
+          if (cx < 1 || cx >= width) continue; // things vanish into the dino's cell
+          if (k.bird) {
+            const map = S.bird(steps + cx);
+            const { w } = S.size(map, 2);
+            // The body is 8 rows from the bottom of the (padded) sprite.
+            S.draw(ctx, map, cx * CELL + (CELL - w) / 2, o.kind === 'lowBird' ? GROUND + 4 : GROUND - 34, 2, ink);
+          } else {
+            const map = S.cactus(o.kind === 'large');
+            const { w } = S.size(map, 2);
+            S.draw(ctx, map, cx * CELL + (CELL - w) / 2, GROUND + 2, 2, ink);
+          }
+        }
+      }
+    }
+
+    const crashed = screen === 'crash' || screen === 'over' || screen === 'crashView';
+    const pose = r ? E.pose(r) : 'run';
+    const map = crashed ? S.dead() : pose === 'duck' ? S.ducking(steps) : pose === 'run' ? S.standing(screen === 'playing' ? steps : 0) : S.jumping();
+    S.draw(ctx, map, 4, GROUND + 2 - (crashed ? 0 : LIFT[pose] || 0), 2, ink, sky);
+
+    if (crashed) {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 20px ui-monospace, Menlo, monospace';
+      ctx.fillText('G A M E   O V E R', W / 2, 44);
+      // The restart arrow.
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(W / 2, 92, 13, Math.PI * 0.25, Math.PI * 1.85);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(W / 2 + 14, 72);
+      ctx.lineTo(W / 2 + 16, 88);
+      ctx.lineTo(W / 2 + 1, 84);
+      ctx.fill();
+    } else if (r && r.practice) {
+      ctx.textAlign = 'left';
+      ctx.fillText('PRACTICE', 10, 8);
+    }
+  }
+
+  // ---------- What a key does on each screen ----------
+  // Actions: space, enter, escape, back, up, down, left, right, release,
+  // routing, char (one typed character) and word (several at once, from a
+  // literary braille table, sent by the space bar).
+  /** A dot key during play: a duck for the set length, or with the length
+   * set to "until your next key", a duck until the next dot key. */
+  function brailleDuck() {
+    if (settings.duckSteps === 0 && run.dino.duckHeld && run.dino.air < 0) move('stand');
+    else move('duck', settings.duckSteps === 0 ? { held: true } : undefined);
+  }
+
+  // ---------- Key check: what each key sends, and what it does ----------
+  let keyCount = 0;
+  let checkSpaceAt = -1e9;
+  let keyCheckBack = null;
+  function openKeyCheck(back) {
+    keyCheckBack = back;
+    keyCount = 0;
+    checkSpaceAt = -1e9;
+    screen = 'keycheck';
+    present('Key check. Press your braille keys one at a time, a second or two apart; each is described here, with what it does in the game. If a key changes nothing here, it never reached the game. Space twice quickly leaves.');
+  }
+  const ARROWS = { up: 'the Up arrow', down: 'the Down arrow', left: 'the Left arrow', right: 'the Right arrow' };
+  function keyCheck(action, ch) {
+    if (action === 'release' || action === 'routing') return;
+    clock.cancel(ignoredTimer);
+    if (action === 'escape') return leave(keyCheckBack);
+    const now = clock.now();
+    if (action === 'space') {
+      if (now - checkSpaceAt < 1500) return leave(keyCheckBack);
+      checkSpaceAt = now;
+    } else checkSpaceAt = -1e9;
+    keyCount++;
+    const what = action === 'space' ? 'Space'
+      : action === 'enter' ? (WINDOWS ? 'Enter' : 'Return')
+      : action === 'back' ? (WINDOWS ? 'Backspace' : 'Delete')
+      : action === 'word' ? `a whole word, ${ch}`
+      : action === 'char' ? (ch ? `the character ${ch}` : 'a key with no character')
+      : ARROWS[action] || action;
+    const does = action === 'space' || action === 'up' ? 'jumps'
+      : ch === 'p' ? 'pauses'
+      : action === 'word' ? 'jumps, with the space that sent it'
+      : 'ducks';
+    const said = `${what}, as ${keySource}. In the game it ${does}. ${keyCount} so far. Space twice leaves.`;
+    present(said.replace(/^./, (c) => c.toUpperCase()));
+  }
+
+  function act(action, ch) {
+    sounds.unlock();
+    const other = action === 'char' || action === 'word';
+    switch (screen) {
+      case 'title':
+        if (action === 'space' || action === 'enter' || action === 'up') startRun();
+        else if (other || action === 'down' || action === 'left' || action === 'right' || action === 'escape' || action === 'back') {
+          delete remembered.Menu;
+          openMainMenu();
+        }
+        break;
+      case 'list':
+        if (action === 'space' || action === 'down') listMove(1);
+        else if (action === 'up') listMove(-1);
+        else if (other || action === 'enter' || action === 'right') listChoose(1);
+        else if (action === 'left') {
+          if (list.items[list.index].option) listChoose(-1);
+          else leave(list.back);
+        } else if (action === 'escape' || action === 'back') leave(list.back);
+        break;
+      case 'pager':
+        if (action === 'space' || action === 'down' || action === 'right' || action === 'enter') pageMove(1);
+        else if (action === 'up' || action === 'left') pageMove(-1);
+        else if (other || action === 'escape' || action === 'back') leave(pager.back);
+        break;
+      case 'ready':
+        if (action === 'escape' || ch === 'p') pause();
+        break;
+      case 'playing':
+        if (action === 'space' || action === 'up') move('jump');
+        else if (action === 'down') move('duck', { held: true });
+        else if (action === 'release') move('stand');
+        else if (action === 'escape' || ch === 'p') pause();
+        else if (action === 'routing') {
+          if (settings.routing === 'jump') move('jump');
+          else if (settings.routing === 'duck') move('duck');
+        } else if (action === 'char' || action === 'back' || action === 'enter' || action === 'left' || action === 'right') brailleDuck();
+        break;
+      case 'keycheck':
+        keyCheck(action, ch);
+        break;
+      case 'paused':
+        if (action === 'space' || action === 'enter' || action === 'escape') resume();
+        else if (other || action === 'back' || action === 'down' || action === 'up' || action === 'left' || action === 'right') openPauseMenu();
+        break;
+      case 'crash':
+        break;
+      case 'over':
+        if (action === 'space' || action === 'enter') startRun();
+        else if (other || action === 'escape' || action === 'back' || action === 'down' || action === 'up' || action === 'left' || action === 'right') openOverMenu();
+        break;
+      case 'practiceOver':
+        if (action === 'space' || action === 'enter') startRun({ practice: true, kinds: practiceKinds });
+        else if (other || action === 'escape' || action === 'back' || action === 'down' || action === 'up' || action === 'left' || action === 'right') openPractice(showTitle);
+        break;
+      case 'crashView':
+        if (action !== 'release' && action !== 'routing') {
+          drawScene();
+          leave(returnTo);
+        }
+        break;
+    }
+  }
+
+  // ---------- Braille input: text typed into the game line ----------
+  // Single letters as contracted braille wordsigns, for literary tables
+  // (which send "people" for p, and so on).
+  const WORDSIGNS = {
+    but: 'b', can: 'c', do: 'd', every: 'e', from: 'f', go: 'g', have: 'h', just: 'j', knowledge: 'k', like: 'l',
+    more: 'm', not: 'n', people: 'p', quite: 'q', rather: 'r', so: 's', that: 't', us: 'u', very: 'v', will: 'w',
+    it: 'x', you: 'y', as: 'z',
+  };
+  let lastWordAt = -1e9;
+  let lastKeySpaceAt = -1e9;
+
+  function typed(text) {
+    if (!text) return;
+    if (text === ' ') {
+      // A word's own space, or a keyboard space already handled, is not a second press.
+      const now = clock.now();
+      if (now - lastWordAt < 100 || now - lastKeySpaceAt < 50) return;
+      return act('space');
+    }
+    const chars = [...text];
+    // A key with no character of its own (an accent key, an empty insert).
+    if (text === '\u0000') return act('char', '');
+    if (chars.length === 1) return act('char', text.toLowerCase());
+    // A whole word at once: a literary braille table sends what was typed
+    // when the space bar is pressed.
+    wordInputSeen = true;
+    lastWordAt = clock.now();
+    const word = text.trim().toLowerCase();
+    const letter = [...word].length === 1 ? word : WORDSIGNS[word];
+    if (screen === 'playing' || screen === 'ready') {
+      if (letter === 'p') act('char', 'p');
+      else if (/\s$/.test(text)) act('space');
+      return;
+    }
+    if (word) act('word', letter || word);
+    else act('space');
+  }
+
+  // What delivered the key being handled, for the key check.
+  let keySource = '';
+  // A chord that arrives by composing (an accented character) sends a run
+  // of events: it counts once, at the start, and the rest are ignored. A
+  // browser can drop a composition without compositionend when the line is
+  // rebuilt under it (Chrome does), and the flag would then hide every key
+  // that arrives as typed text until the page is reloaded. So it also ends
+  // when no composition event has come for a moment, and at any key press
+  // that is not part of a composition.
+  const COMPOSING_MS = 150;
+  let composing = false;
+  let composingAt = -1e9;
+  function inComposition(e) {
+    if (e.isComposing) {
+      composingAt = clock.now();
+      return true;
+    }
+    if (composing && clock.now() - composingAt > COMPOSING_MS) composing = false;
+    return composing;
+  }
+  // Other blanks are the space bar too: a no-break space (Option-Space), a
+  // blank braille cell (a Unicode braille input table), a wide space.
+  const BLANKS = { '\u00a0': 'a no-break space', '\u202f': 'a narrow no-break space', '\u2800': 'a blank braille cell', '\u3000': 'a wide space' };
+  function key(text, source) {
+    if (BLANKS[text]) {
+      source = `${source}, ${BLANKS[text]}`;
+      text = ' ';
+    }
+    if (WINDOWS) return gather(text, source);
+    keySource = source;
+    typed(text);
+  }
+
+  // NVDA (and probably JAWS) types a contracted braille word as one key
+  // press per letter, all at once, where VoiceOver types it in one go. On
+  // Windows, characters that come within a few milliseconds of each other
+  // are gathered into one word, as VoiceOver would send it. A lone Space
+  // jumps at once, and the word's own space ends it.
+  const BURST_MS = 25;
+  let burst = '';
+  let burstSource = '';
+  let burstTimer = 0;
+  function flushBurst() {
+    clock.cancel(burstTimer);
+    burstTimer = 0;
+    const text = burst;
+    burst = '';
+    if (!text) return;
+    keySource = burstSource;
+    typed(text);
+  }
+  function gather(text, source) {
+    if (text === '\u0000' || (text === ' ' && !burst)) {
+      flushBurst();
+      keySource = source;
+      return typed(text);
+    }
+    burst += text;
+    burstSource = source;
+    clock.cancel(burstTimer);
+    if (/\s$/.test(text)) flushBurst();
+    else burstTimer = clock.after(BURST_MS, flushBurst);
+  }
+
+  // Editing actions that are not keys at all (undo from the Edit menu,
+  // formatting): ignored. Everything else that arrives is a key.
+  const NOT_KEYS = /^(history|format)/;
+
+  let beforeInputHandled = false;
+  line.addEventListener('beforeinput', (e) => {
+    // The game line only ever shows the game.
+    e.preventDefault();
+    if (NOT_KEYS.test(e.inputType)) return;
+    beforeInputHandled = true;
+    setTimeout(() => (beforeInputHandled = false), 0);
+    if (inComposition(e) || e.inputType === 'insertFromComposition') return;
+    inputType(e.inputType, e.data, e.inputType === 'insertCompositionText' ? 'composing text' : 'typed text');
+  });
+
+  function inputType(type, data, source) {
+    keySource = source;
+    if (type === 'insertLineBreak' || type === 'insertParagraph') act('enter');
+    else if (type === 'deleteContentBackward' || type === 'deleteWordBackward') act('back');
+    else if (data && !type.startsWith('delete')) key(data, source);
+    // Anything else (an insert with no text, a forward delete): still a key.
+    else key('\u0000', `${source}, ${type}`);
+  }
+
+  // Some input changes the field without a cancellable beforeinput: work out
+  // what was typed from the new text, act on it, and put the game back.
+  line.addEventListener('input', (e) => {
+    const handled = beforeInputHandled;
+    beforeInputHandled = false;
+    const now = line.textContent;
+    const before = FIRST_LINE + (shown || '\u2800');
+    restoreLine();
+    if (handled || inComposition(e) || NOT_KEYS.test(e.inputType || '')) return;
+    if (e.data && e.inputType && e.inputType.startsWith('insert')) return key(e.data, 'text, after the fact');
+    let start = 0;
+    while (start < before.length && start < now.length && before[start] === now[start]) start++;
+    let end = 0;
+    while (end < before.length - start && end < now.length - start && before[before.length - 1 - end] === now[now.length - 1 - end]) end++;
+    const inserted = now.slice(start, now.length - end);
+    if (inserted) key(inserted, 'text, after the fact');
+    else if (e.inputType) inputType(e.inputType, null, 'an edit, after the fact');
+  });
+  line.addEventListener('compositionstart', () => {
+    composing = true;
+    composingAt = clock.now();
+    key('\u0000', 'an accent or composed key');
+    composingAt = clock.now();
+  });
+  line.addEventListener('compositionupdate', () => (composingAt = clock.now()));
+  line.addEventListener('compositionend', () => {
+    // Its last text comes in this task; ignore it, then listen again.
+    composingAt = clock.now();
+    setTimeout(() => {
+      composing = false;
+      restoreLine();
+    }, 0);
+  });
+  for (const type of ['paste', 'drop', 'cut']) line.addEventListener(type, (e) => e.preventDefault());
+  // ---------- Keyboard ----------
+  const KEYS = {
+    ' ': 'space', Enter: 'enter', Escape: 'escape', Backspace: 'back',
+    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+  };
+  // A space bar that comes without its usual name.
+  const keyName = (e) => (e.key === 'Spacebar' || (e.key === 'Unidentified' && (e.code === 'Space' || e.keyCode === 32)) ? ' ' : e.key);
+  function onKeyDown(e) {
+    // A key press that is not part of a composition: none is going on.
+    if (!e.isComposing && e.keyCode !== 229) composing = false;
+    // Tab stays on the game line: the rest of the page opens from the menu.
+    if (e.key === 'Tab' && trapped) {
+      e.preventDefault();
+      noteIgnored(e, 'Tab stays on the game line');
+      return;
+    }
+    // Command and Control are the browser's and the screen reader's.
+    if (e.ctrlKey || e.metaKey) return noteIgnored(e, `keys with Control or ${WINDOWS ? 'the Windows key' : 'Command'} belong to the browser and the screen reader`);
+    const name = keyName(e);
+    const action = !e.altKey && KEYS[name];
+    if (action) {
+      e.preventDefault();
+      if (action === 'space') lastKeySpaceAt = clock.now();
+      // Held keys repeat only to move through lists and pages, never to
+      // choose, change or go back.
+      const moving = action === 'space' || action === 'up' || action === 'down';
+      if (e.repeat && !((screen === 'list' || screen === 'pager') && moving)) return;
+      keySource = name !== e.key ? `a key press named ${e.key}` : e.key === ' ' ? 'a key press' : `the ${e.key} key`;
+      if (action === 'down' && !e.repeat) downAt = clock.now();
+      act(action);
+    } else if ([...e.key].length === 1 || e.key === 'Dead' || (e.altKey && !MODIFIERS.test(e.key))) {
+      // A character, an accent key, or a key with Option: braille chords for
+      // accented characters can arrive these ways. Cancelling the press stops
+      // any composing that would follow.
+      e.preventDefault();
+      if (e.repeat) return;
+      const source = e.key === 'Dead' ? 'an accent key' : e.altKey ? `a key press with ${WINDOWS ? 'Alt' : 'Option'}` : 'a key press';
+      key([...e.key].length === 1 ? e.key : '\u0000', source);
+    } else noteIgnored(e, /^(Unidentified|Process)$/.test(e.key) ? 'it brought no character' : 'the game does not use it');
+  }
+  line.addEventListener('keydown', onKeyDown);
+
+  // Key check names keys the game does not use, so a key that seems dead can
+  // be told apart from one that never reaches the page. It waits a moment,
+  // since a key with no character may still bring typed text. Modifier keys
+  // alone are left out: Control alone stops speech, and so on.
+  const MODIFIERS = /^(Shift|Control|Alt|AltGraph|Meta|OS|CapsLock|Fn|FnLock|Hyper|Super|Symbol|SymbolLock|NumLock|ScrollLock)$/;
+  let ignoredTimer = 0;
+  function noteIgnored(e, why) {
+    if (screen !== 'keycheck' || e.repeat || MODIFIERS.test(e.key)) return;
+    const mods = [e.ctrlKey && 'Control', e.metaKey && (WINDOWS ? 'the Windows key' : 'Command'), e.altKey && (WINDOWS ? 'Alt' : 'Option'), e.shiftKey && 'Shift'].filter(Boolean);
+    const named = e.key === ' ' ? 'Space' : e.key;
+    const what = `The key ${named}${e.code && e.code !== e.key ? `, code ${e.code}` : ''}${mods.length ? `, with ${mods.join(' and ')}` : ''}`;
+    clock.cancel(ignoredTimer);
+    ignoredTimer = clock.after(50, () => {
+      if (screen !== 'keycheck') return;
+      keyCount++;
+      checkSpaceAt = -1e9;
+      present(`${what}, as a key press the game ignores: ${why}. ${keyCount} so far. Space twice leaves.`);
+    });
+  }
+  // On the document, so letting go of Down is seen wherever focus is.
+  // NVDA's caret script sends Down's press and release together and keeps
+  // the real release, so a release that comes at once is a tap: a duck of
+  // Duck length steps, as a braille key gives.
+  let downAt = -1e9;
+  document.addEventListener('keyup', (e) => {
+    if (e.key !== 'ArrowDown') return;
+    if (screen === 'playing' && !pendingHit && run.dino.duckHeld && clock.now() - downAt < 40) {
+      if (settings.duckSteps === 0) return; // down until the next key
+      run.dino.duckHeld = false;
+      move('duck');
+      return;
+    }
+    act('release');
+  });
+
+  // ---------- Routing keys: a caret move that the game did not make ----------
+  // The game puts the caret back in the same task as every change, so a
+  // caret anywhere else was moved by a routing key (or a click). The next
+  // step puts it back; moving it here as well would fight VoiceOver.
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement !== line) return;
+    // NVDA moves the caret to the first line when the player pans back past
+    // the start, or presses the display's Up key. Put it straight back, and
+    // do not count it as a routing press.
+    if (WINDOWS && row() && !row().contains(getSelection().anchorNode)) {
+      setTimeout(() => {
+        if (document.activeElement === line && !caretIsPlaced()) placeCaret();
+      }, 0);
+      return;
+    }
+    if (screen !== 'playing') return;
+    if (caretIsPlaced() || settings.routing === 'off') return;
+    act('routing');
+  });
+
+  // ---------- Focus ----------
+  // The game line keeps focus. The rest of the page is inert, so VoiceOver
+  // has nothing else to read or move to, and focus that drifts (to the page
+  // itself, or back from another window) returns to the line. The page opens
+  // only from the menu (Help and settings on the page).
+  const pageEl = $('page');
+  let trapped = true;
+  const refocus = () => {
+    if (trapped && document.hasFocus() && document.activeElement !== line) line.focus();
+  };
+
+  function trap() {
+    trapped = true;
+    pageEl.inert = true;
+    forgetPress();
+  }
+
+  /** focus: open it from the menu, with focus on Back to the game and both
+   * sections open, so the page reads straight through and Tab reaches every
+   * setting. Without it (a mouse press) focus and the sections are left as
+   * they are, for the click to act on. */
+  function openPage({ focus = true } = {}) {
+    trapped = false;
+    pageEl.inert = false;
+    if (screen === 'playing' || screen === 'ready') pause('focus');
+    if (!focus) return;
+    for (const d of pageEl.querySelectorAll('details')) d.open = true;
+    pageEl.querySelector('.back-to-game').focus();
+  }
+
+  function backToGame() {
+    trap();
+    line.focus();
+  }
+  for (const b of document.querySelectorAll('.back-to-game')) {
+    b.addEventListener('click', () => {
+      sounds.unlock();
+      backToGame();
+    });
+  }
+
+  // The mouse (a sighted helper's, say) can use the page at any time. While
+  // the game has it locked the page is inert, so a press there lands on the
+  // body. A press on one of its controls opens the page, and once the press
+  // ends on that control it is passed on to it, unless the browser's own
+  // click got there (browsers differ when the target changes during a
+  // click). A press on its text does nothing, as before: focus comes back to
+  // the line. So does a press that ends off its control, which unlocks
+  // nothing in the end. A press on the game locks the page again.
+  const CONTROLS = 'summary, button, select, label';
+  let pressed = null;
+  let passTimer = 0;
+  let passed = null; // { control, at }: a click already passed on
+  const under = (el, e) => {
+    const r = el.getBoundingClientRect();
+    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  };
+  function forgetPress() {
+    pressed = passed = null;
+    clearTimeout(passTimer);
+    passTimer = 0;
+  }
+  function passOn(control) {
+    passTimer = 0;
+    passed = { control, at: performance.now() };
+    // Focus goes where a click of its own would put it.
+    if (control.tagName === 'SUMMARY' || control.tagName === 'SELECT') control.focus({ preventScroll: true });
+    if (control.tagName !== 'SELECT') return control.click();
+    try {
+      if (typeof control.showPicker === 'function') control.showPicker();
+    } catch {
+      // Focus alone: a second click opens it.
+    }
+  }
+  document.addEventListener('pointerdown', (e) => {
+    forgetPress();
+    // A plain press of the main button only: no right-click (on a Mac, Control-click).
+    if (e.button !== 0 || !e.isPrimary || (e.ctrlKey && !WINDOWS)) return;
+    if (trapped && under(pageEl, e)) {
+      // Found from the layout, before anything redraws.
+      const control = [...pageEl.querySelectorAll(CONTROLS)].find((c) => c.getClientRects().length && under(c, e));
+      if (!control) return;
+      openPage({ focus: false });
+      pressed = control;
+    } else if (!trapped && under(document.querySelector('main'), e) && !line.contains(e.target)) backToGame();
+  }, true);
+  document.addEventListener('pointerup', (e) => {
+    const control = pressed;
+    pressed = null;
+    if (!control || trapped) return;
+    const at = document.elementFromPoint(e.clientX, e.clientY);
+    if (at && control.contains(at)) passTimer = setTimeout(() => passOn(control), 0);
+    // Let go somewhere else: no click, as with any button, and back to the game.
+    else backToGame();
+  }, true);
+  document.addEventListener('pointercancel', () => {
+    if (pressed && !trapped) backToGame();
+    pressed = null;
+  }, true);
+  document.addEventListener('click', (e) => {
+    if (passTimer && pageEl.contains(e.target)) {
+      // The browser's click reached the page itself.
+      clearTimeout(passTimer);
+      passTimer = 0;
+    } else if (passed && e.isTrusted && e.detail > 0 && passed.control.contains(e.target) && performance.now() - passed.at < 700) {
+      // A late click (after a touch) on the control just passed on: once is
+      // enough. Clicks from the keyboard (detail 0) are left alone.
+      e.preventDefault();
+      e.stopPropagation();
+      passed = null;
+    }
+  }, true);
+
+  /** Tab on the page: through its buttons, headings and settings, in order,
+   * and round again. Safari's own Tab skips buttons and headings, and would
+   * jump straight back to the game line. */
+  function tabOnPage(dir) {
+    const stops = [...pageEl.querySelectorAll('button, summary, select')].filter((el) => el.getClientRects().length);
+    if (!stops.length) return;
+    const i = stops.indexOf(document.activeElement);
+    stops[i < 0 ? (dir > 0 ? 0 : stops.length - 1) : (i + dir + stops.length) % stops.length].focus();
+  }
+
+  // Keys pressed outside the game line.
+  document.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented || line.contains(e.target)) return;
+    if (trapped) {
+      // Focus can be off the line for a moment before it comes back: a key
+      // pressed then still reaches the game.
+      line.focus();
+      onKeyDown(e);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      backToGame();
+    } else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      tabOnPage(e.shiftKey ? -1 : 1);
+    }
+  });
+
+  let refocusTimer = 0;
+  line.addEventListener('blur', () => {
+    clearTimeout(refocusTimer);
+    if (screen === 'playing' || screen === 'ready') pause('focus');
+    // A screen of braille cells shows its words while focus is away, so
+    // VoiceOver reads words, not cells, when the player comes back.
+    else if (current.cells && current.spoken !== current.text) show(current.spoken);
+    setTimeout(refocus, 50);
+  });
+  document.addEventListener('focusin', (e) => {
+    if (trapped && e.target !== line) line.focus();
+  });
+  window.addEventListener('focus', () => setTimeout(refocus, 0));
+  document.addEventListener('pointerdown', () => setTimeout(refocus, 0));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pause('focus');
+  });
+  line.addEventListener('focus', () => {
+    if (!trapped) trap();
+    if (shown === null) return;
+    show(shown, shownCaret);
+    // Safari selects the whole field when it is reached with Tab, after this
+    // event; put the caret back once that has happened. The cells come back
+    // after VoiceOver has read the words.
+    clearTimeout(refocusTimer);
+    setTimeout(() => {
+      if (document.activeElement === line && !caretIsPlaced()) show(shown, shownCaret);
+    }, 0);
+    if (shown !== current.text) {
+      const showing = current;
+      refocusTimer = setTimeout(() => {
+        if (document.activeElement === line && current === showing) show(current.text, current.caret);
+      }, 1500);
+    }
+  });
+  for (const type of ['pointerdown', 'keydown', 'click']) document.addEventListener(type, () => sounds.unlock(), { capture: true });
+
+  // ---------- Settings form (for VoiceOver's normal reading) ----------
+  const form = $('settings-form');
+  for (const o of OPTIONS) {
+    const p = document.createElement('p');
+    const label = document.createElement('label');
+    const select = document.createElement('select');
+    select.id = `opt-${o.key}`;
+    label.htmlFor = select.id;
+    label.textContent = o.label;
+    o.values.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = o.text(v);
+      select.append(opt);
+    });
+    select.addEventListener('change', () => {
+      setOption(o.key, o.values[Number(select.value)]);
+      if (screen === 'list') showItem(false);
+      else if (screen === 'title') show(titleText());
+    });
+    p.append(label, ' ', select);
+    form.append(p);
+  }
+  function syncForm() {
+    for (const o of OPTIONS) {
+      const select = $(`opt-${o.key}`);
+      // Texts can depend on other settings (Score numbers on Braille table).
+      o.values.forEach((v, i) => (select.options[i].textContent = o.text(v)));
+      select.value = String(o.values.indexOf(settings[o.key]));
+    }
+  }
+
+  // ---------- Symbol table on the page ----------
+  function fillSymbolTable() {
+    const body = $('symbol-rows');
+    body.replaceChildren();
+    for (const s of E.legend(settings.dots)) {
+      const tr = document.createElement('tr');
+      const c = document.createElement('td');
+      c.className = 'cells';
+      c.textContent = s.cell;
+      c.setAttribute('aria-hidden', 'true');
+      const n = document.createElement('td');
+      n.textContent = s.answer ? `${s.name}. ${s.answer}` : s.name;
+      const d = document.createElement('td');
+      d.textContent = dotsText(s);
+      tr.append(c, n, d);
+      body.append(tr);
+    }
+  }
+
+  // ---------- Start ----------
+  applySettings();
+  syncForm();
+  showTitle({ quiet: true }); // VoiceOver reads the line as focus lands on it
+  line.focus();
+
+  if (TEST) {
+    window.__dino = {
+      clock,
+      get screen() { return screen; },
+      get run() { return run; },
+      get pendingHit() { return !!pendingHit; },
+      get list() { return list && { title: list.title, index: list.index, items: list.items.map(itemText) }; },
+      get trapped() { return trapped; },
+      settings,
+      line: () => (row() ? row().textContent : ''),
+      caretPlaced: () => caretIsPlaced(),
+      setOption,
+      speech,
+    };
+  }
+})();
+</script>
+</body>
+</html>
